@@ -44,6 +44,7 @@ simline_t::simline_t(player_t* player, linetype type)
 	this->player = player;
 	withdraw = false;
 	state_color = SYSCOL_TEXT;
+    route_length = 0;
 	create_schedule();
 }
 

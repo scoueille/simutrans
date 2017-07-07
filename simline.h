@@ -28,6 +28,8 @@
 #define LINE_WAYTOLL        8 // way toll paid by vehicles of line
 #define MAX_LINE_COST   9 // Total number of cost items
 
+#define EXP_SMOOTH_COEFF 0.5 // Exponential smoothing coefficient. Used in route length estimation
+
 class karte_ptr_t;
 class loadsave_t;
 class player_t;
@@ -78,6 +80,11 @@ private:
 	 * @author hsiegeln
 	 */
 	sint64 financial_history[MAX_MONTHS][MAX_LINE_COST];
+
+    /*
+     * Estimate route length for vehicle unbunching
+     */
+    sint64 route_length;
 
 	/**
 	 * creates empty schedule with type depending on line-type
@@ -202,6 +209,11 @@ public:
 
 	player_t *get_owner() const {return player;}
 
+    sint64 get_estimated_route_length() const { return route_length; }
+
+    void update_route_length(sint64 new_length) {
+        route_length = EXP_SMOOTH_COEFF * new_length + (1 - EXP_SMOOTH_COEFF) * route_length;
+    }
 
 };
 

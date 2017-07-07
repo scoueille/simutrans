@@ -163,6 +163,8 @@ void convoi_t::init(player_t *player)
 
 	recalc_data_front = true;
 	recalc_data = true;
+
+    last_odometer_on_terminus = 0;
 }
 
 
@@ -1195,6 +1197,8 @@ void convoi_t::step()
 			// schedule window closed?
 			if(schedule!=NULL  &&  schedule->is_editing_finished()) {
 
+                last_odometer_on_terminus = 0;
+
 				set_schedule(schedule);
 				schedule_target = koord3d::invalid;
 
@@ -1564,6 +1568,14 @@ void convoi_t::ziel_erreicht()
 {
 	const vehicle_t* v = fahr[0];
 	alte_richtung = v->get_direction();
+
+    if (line.is_bound() && schedule->get_current_stop() == 0) {
+        if (last_odometer_on_terminus > 0) {
+            sint64 new_route_length = total_distance_traveled - last_odometer_on_terminus;
+            line->update_route_length(new_route_length);
+        }
+        last_odometer_on_terminus = total_distance_traveled;
+    }
 
 	// check, what is at destination!
 	const grund_t *gr = welt->lookup(v->get_pos());
@@ -3437,6 +3449,8 @@ void convoi_t::check_pending_updates()
 				wait_lock = 0;
 			}
 		}
+
+    last_odometer_on_terminus = 0;
 	}
 }
 
