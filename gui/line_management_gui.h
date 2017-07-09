@@ -27,6 +27,8 @@ public:
 	virtual void rdwr( loadsave_t *file );
 	virtual uint32 get_rdwr_id() { return magic_line_schedule_rdwr_dummy; }
 
+    bool action_triggered(gui_action_creator_t*, value_t) OVERRIDE;
+
 
 private:
 	linehandle_t line;

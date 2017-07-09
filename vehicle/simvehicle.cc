@@ -529,7 +529,7 @@ sint16 vehicle_base_t::get_hoff(const sint16 raster_width) const
  */
 vehicle_base_t *vehicle_base_t::no_cars_blocking( const grund_t *gr, const convoi_t *cnv, const uint8 current_direction, const uint8 next_direction, const uint8 next_90direction )
 {
-	// Search vehicle
+    // Search vehicle
 	for(  uint8 pos=1;  pos<(volatile uint8)gr->get_top();  pos++  ) {
 		if(  vehicle_base_t* const v = obj_cast<vehicle_base_t>(gr->obj_bei(pos))  ) {
 			if(  v->get_typ()==obj_t::pedestrian  ) {
@@ -4295,4 +4295,19 @@ const char *air_vehicle_t::is_deletable(const player_t *player)
 		return vehicle_t::is_deletable(player);
 	}
 	return NULL;
+}
+
+void vehicle_t::try_unblock_way() {
+    grund_t *gr = welt->lookup( pos_next );
+    route_t const& r = *cnv->get_route();
+    koord3d next = route_index < r.get_count() - 1u ? r.at(route_index + 1u) : pos_next;
+    ribi_t::ribi curr_direction   = get_direction();
+    ribi_t::ribi next_direction   = calc_direction(get_pos(), next);
+    ribi_t::ribi next_90direction = calc_direction(pos_next, next);
+    vehicle_base_t *obj = no_cars_blocking( gr, cnv, curr_direction, next_direction, next_90direction );
+    vehicle_t *v = obj_cast<vehicle_t>(obj);
+
+    if (v && v->get_typ() == get_typ() && v->get_convoi()->get_state() == convoi_t::LOADING) {
+        v->get_convoi()->reset_unbunching_time();
+    }
 }

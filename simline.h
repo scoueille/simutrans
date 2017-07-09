@@ -82,9 +82,11 @@ private:
 	sint64 financial_history[MAX_MONTHS][MAX_LINE_COST];
 
     /*
-     * Estimate route length for vehicle unbunching
+     * Estimated route total time for vehicle unbunching
      */
-    sint64 route_length;
+    sint64 route_time;
+
+    bool unbunching;
 
 	/**
 	 * creates empty schedule with type depending on line-type
@@ -209,11 +211,14 @@ public:
 
 	player_t *get_owner() const {return player;}
 
-    sint64 get_estimated_route_length() const { return route_length; }
+    sint64 get_estimated_route_time() const { return route_time; }
 
-    void update_route_length(sint64 new_length) {
-        route_length = EXP_SMOOTH_COEFF * new_length + (1 - EXP_SMOOTH_COEFF) * route_length;
+    void update_route_time(sint64 new_length) {
+        route_time = EXP_SMOOTH_COEFF * new_length + (1 - EXP_SMOOTH_COEFF) * route_time;
     }
+
+    bool is_unbunching() const { return unbunching; }
+    void set_unbunching(bool unbunch) {unbunching = unbunch; }
 
 };
 

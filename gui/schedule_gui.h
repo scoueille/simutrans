@@ -116,6 +116,8 @@ protected:
 
 	linehandle_t new_line, old_line;
 
+    button_t unbunching_toggle;
+
 public:
 	static int entry_height;
 

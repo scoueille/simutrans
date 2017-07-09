@@ -44,7 +44,8 @@ simline_t::simline_t(player_t* player, linetype type)
 	this->player = player;
 	withdraw = false;
 	state_color = SYSCOL_TEXT;
-    route_length = 0;
+    route_time = 0;
+    unbunching = type == truckline? true : false;
 	create_schedule();
 }
 
@@ -59,6 +60,8 @@ simline_t::simline_t(player_t* player, linetype type, loadsave_t *file)
 	withdraw = false;
 	create_schedule();
 	rdwr(file);
+    route_time = 0;
+    unbunching = type == truckline? true : false;
 	// now self has the right id but the this-pointer is not assigned to the quickstone handle yet
 	// do this explicitly
 	// some savegames have line_id=0, resolve that in finish_rd

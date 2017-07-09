@@ -15,7 +15,8 @@ public:
 	schedule_entry_t(koord3d const& pos, uint const minimum_loading, sint8 const waiting_time_shift) :
 		pos(pos),
 		minimum_loading(minimum_loading),
-		waiting_time_shift(waiting_time_shift)
+        waiting_time_shift(waiting_time_shift),
+        last_departure_time(0)
 	{}
 
 	/**
@@ -37,6 +38,11 @@ public:
 	 * @author prissi
 	 */
 	sint8 waiting_time_shift;
+
+    /**
+     * unbunching: the time the last vehicle departured from here.
+     */
+    uint32 last_departure_time;
 };
 
 #endif

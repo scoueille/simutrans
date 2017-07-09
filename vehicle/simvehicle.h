@@ -470,6 +470,9 @@ public:
 #else
 	virtual void display_after(int xpos, int ypos, bool dirty) const;
 #endif
+
+    //Tries to unblock way in case there are vehicle waiting for unbunching and blocking your way
+    void try_unblock_way();
 };
 
 

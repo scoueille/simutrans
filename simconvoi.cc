@@ -164,7 +164,8 @@ void convoi_t::init(player_t *player)
 	recalc_data_front = true;
 	recalc_data = true;
 
-    last_odometer_on_terminus = 0;
+    last_ticks_on_terminus = 0;
+    end_unbunching_time = 0;
 }
 
 
@@ -1197,7 +1198,7 @@ void convoi_t::step()
 			// schedule window closed?
 			if(schedule!=NULL  &&  schedule->is_editing_finished()) {
 
-                last_odometer_on_terminus = 0;
+                last_ticks_on_terminus = 0;
 
 				set_schedule(schedule);
 				schedule_target = koord3d::invalid;
@@ -1318,7 +1319,9 @@ void convoi_t::step()
 				sint32 restart_speed = -1;
 				if(  fahr[0]->can_enter_tile( restart_speed, 0 )  ) {
 					state = (steps_driven>=0) ? LEAVING_DEPOT : DRIVING;
-				}
+                } else {
+                    fahr[0]->try_unblock_way();
+                }
 				if(restart_speed>=0) {
 					akt_speed = restart_speed;
 				}
@@ -1570,11 +1573,13 @@ void convoi_t::ziel_erreicht()
 	alte_richtung = v->get_direction();
 
     if (line.is_bound() && schedule->get_current_stop() == 0) {
-        if (last_odometer_on_terminus > 0) {
-            sint64 new_route_length = total_distance_traveled - last_odometer_on_terminus;
-            line->update_route_length(new_route_length);
+        if (last_ticks_on_terminus > 0) {
+            uint32 new_route_time = welt->get_ticks() - last_ticks_on_terminus;
+            line->update_route_time(new_route_time);
+            fprintf(stdout, "%s: new_route_time: %d\n", get_name(), new_route_time);
+            fflush(stdout);
         }
-        last_odometer_on_terminus = total_distance_traveled;
+        last_ticks_on_terminus = welt->get_ticks();
     }
 
 	// check, what is at destination!
@@ -1603,6 +1608,20 @@ void convoi_t::ziel_erreicht()
 			halt->book(1, HALT_CONVOIS_ARRIVED);
 			state = LOADING;
 			arrived_time = welt->get_ticks();
+
+            //Needs unbunching?
+            if (line.is_bound() && line->is_unbunching()) {
+                uint32 last_departured_from_here = line->get_schedule()->entries[schedule->get_current_stop()].last_departure_time;
+                uint32 target_interval = line->get_estimated_route_time() / line->count_convoys();
+                uint32 actual_interval = arrived_time - last_departured_from_here;
+                fprintf(stdout, "%s: curr_stop: %d; arrived_time: %d, last_arrived_here: %d; t: %d\n", get_name(), schedule->get_current_stop(), arrived_time, last_departured_from_here, target_interval);
+                if (actual_interval < target_interval * 0.9) {
+                    uint32 unbunching_time = welt->get_ticks() + target_interval - actual_interval;
+                    reset_unbunching_time(unbunching_time);
+                    fprintf(stdout, "Unbunching (time: %d)!\n", unbunching_time);
+                }
+                fflush(stdout);
+            }
 		}
 		else {
 			// Neither depot nor station: waypoint
@@ -2984,26 +3003,38 @@ station_tile_search_ready: ;
 	}
 
 	// loading is finished => maybe drive on
-	if(  loading_level >= loading_limit  ||  no_load
-		||  (schedule->get_current_entry().waiting_time_shift > 0  &&  welt->get_ticks() - arrived_time > (welt->ticks_per_world_month >> (16 - schedule->get_current_entry().waiting_time_shift)) ) ) {
+    bool proceed = false;
+    if ((line.is_bound() && line->is_unbunching()) ) {
+        proceed = end_unbunching_time < welt->get_ticks() || loading_level == 100; // Stop unbunching when full loaded
+    } else {
+        //'Wait for load' is ignored when in unbunching mode
+        proceed = loading_level >= loading_limit
+                || (schedule->get_current_entry().waiting_time_shift > 0  &&  welt->get_ticks() - arrived_time > (welt->ticks_per_world_month >> (16 - schedule->get_current_entry().waiting_time_shift)) );
+    }
+    proceed |= no_load;
 
-		if(  withdraw  &&  (loading_level == 0  ||  goods_catg_index.empty())  ) {
-			// destroy when empty
-			self_destruct();
-			return;
-		}
+    if(proceed) {
+        if (line.is_bound())
+            line->get_schedule()->entries[schedule->get_current_stop()].last_departure_time = welt->get_ticks();
 
-		calc_speedbonus_kmh();
+        if(  withdraw  &&  (loading_level == 0  ||  goods_catg_index.empty())  ) {
+            // destroy when empty
+            self_destruct();
+            return;
+        }
 
-		// add available capacity after loading(!) to statistics
-		for (unsigned i = 0; i<anz_vehikel; i++) {
-			book(get_vehikel(i)->get_cargo_max()-get_vehikel(i)->get_total_cargo(), CONVOI_CAPACITY);
-		}
+        calc_speedbonus_kmh();
 
-		// Advance schedule
-		schedule->advance();
-		state = ROUTING_1;
-		loading_limit = 0;
+        // add available capacity after loading(!) to statistics
+        for (unsigned i = 0; i<anz_vehikel; i++) {
+            book(get_vehikel(i)->get_cargo_max()-get_vehikel(i)->get_total_cargo(), CONVOI_CAPACITY);
+        }
+
+        // Advance schedule
+        schedule->advance();
+        state = ROUTING_1;
+        loading_limit = 0;
+
 	}
 
 	INT_CHECK( "convoi_t::hat_gehalten" );
@@ -3450,7 +3481,7 @@ void convoi_t::check_pending_updates()
 			}
 		}
 
-    last_odometer_on_terminus = 0;
+    last_ticks_on_terminus = 0;
 	}
 }
 
@@ -3801,7 +3832,7 @@ bool convoi_t::can_overtake(overtaker_t *other_overtaker, sint32 other_speed, si
 
 	set_tiles_overtaking( 1+n_tiles );
 	other_overtaker->set_tiles_overtaking( -1-(n_tiles*(akt_speed-diff_speed))/akt_speed );
-	return true;
+    return true;
 }
 
 
