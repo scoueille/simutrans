@@ -1615,7 +1615,7 @@ void convoi_t::ziel_erreicht()
                 uint32 target_interval = line->get_estimated_route_time() / line->count_convoys();
                 uint32 actual_interval = arrived_time - last_departured_from_here;
                 fprintf(stdout, "%s: curr_stop: %d; arrived_time: %d, last_arrived_here: %d; t: %d\n", get_name(), schedule->get_current_stop(), arrived_time, last_departured_from_here, target_interval);
-                if (actual_interval < target_interval * 0.9) {
+                if (actual_interval < target_interval * 0.8) {
                     uint32 unbunching_time = welt->get_ticks() + target_interval - actual_interval;
                     reset_unbunching_time(unbunching_time);
                     fprintf(stdout, "Unbunching (time: %d)!\n", unbunching_time);
