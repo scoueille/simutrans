@@ -4298,16 +4298,46 @@ const char *air_vehicle_t::is_deletable(const player_t *player)
 }
 
 void vehicle_t::try_unblock_way() {
+
+    uint32 test_index = route_index + 1u;
+
     grund_t *gr = welt->lookup( pos_next );
     route_t const& r = *cnv->get_route();
     koord3d next = route_index < r.get_count() - 1u ? r.at(route_index + 1u) : pos_next;
     ribi_t::ribi curr_direction   = get_direction();
+    //ribi_t::ribi curr_90direction = calc_direction(get_pos(), pos_next);
     ribi_t::ribi next_direction   = calc_direction(get_pos(), next);
     ribi_t::ribi next_90direction = calc_direction(pos_next, next);
     vehicle_base_t *obj = no_cars_blocking( gr, cnv, curr_direction, next_direction, next_90direction );
+
+    int ct = 0;
+    while (!obj && ct < 4) {
+
+        gr = welt->lookup(r.at(test_index));
+        curr_direction   = next_direction;
+        //curr_90direction = next_90direction;
+        if(  test_index + 1u < r.get_count()  ) {
+            next                 = r.at(test_index + 1u);
+            next_direction   = calc_direction(r.at(test_index - 1u), next);
+            next_90direction = calc_direction(r.at(test_index),      next);
+            obj = no_cars_blocking( gr, cnv, curr_direction, next_direction, next_90direction );
+        } else {
+            next                 = r.at(test_index);
+            next_90direction = calc_direction(r.at(test_index - 1u), next);
+            if(  curr_direction == next_90direction  ||  !gr->is_halt()  ) {
+                // check cars but allow to enter intersection if we are turning even when a car is blocking the halt on the last tile of our route
+                // preserves old bus terminal behaviour
+                obj = no_cars_blocking( gr, cnv, curr_direction, next_90direction, ribi_t::none );
+            }
+        }
+
+        ct++;
+    }
+
     vehicle_t *v = obj_cast<vehicle_t>(obj);
 
     if (v && v->get_typ() == get_typ() && v->get_convoi()->get_state() == convoi_t::LOADING) {
         v->get_convoi()->reset_unbunching_time();
     }
+
 }

@@ -44,7 +44,7 @@ simline_t::simline_t(player_t* player, linetype type)
 	this->player = player;
 	withdraw = false;
 	state_color = SYSCOL_TEXT;
-    route_time = 0;
+    route_length = 0;
     unbunching = false;
 	create_schedule();
 }
@@ -59,7 +59,7 @@ simline_t::simline_t(player_t* player, linetype type, loadsave_t *file)
 	this->player = player;
 	withdraw = false;
     unbunching = false;
-    route_time = 0;
+    route_length = 0;
 
 	create_schedule();
 	rdwr(file);

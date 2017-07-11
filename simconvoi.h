@@ -293,7 +293,7 @@ private:
 	sint32 previous_delta_v;  // Stores the previous delta_v value; otherwise these digits are lost during calculation and vehicle do not accelerate
 
     // needed for vehicle unbunching.
-    sint64 last_ticks_on_terminus;   //is resetted on line changed or when user intrudes the shedule
+    sint64 last_length_on_terminus;   //is resetted on line changed or when user intrudes the shedule
     uint32 end_unbunching_time;
 
 	uint32 next_wolke;	// time to next smoke
