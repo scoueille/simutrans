@@ -4297,7 +4297,7 @@ const char *air_vehicle_t::is_deletable(const player_t *player)
 	return NULL;
 }
 
-void vehicle_t::try_unblock_way() {
+void road_vehicle_t::try_unblock_way() {
 
     uint32 test_index = route_index + 1u;
 
@@ -4342,4 +4342,26 @@ void vehicle_t::try_unblock_way() {
         v->get_convoi()->reset_unbunching_time();
     }
 
+}
+
+void rail_vehicle_t::try_unblock_way() {
+    //We're waiting at the signal for free way. So, we look at the
+    //reservation block and if there some train - we want it to stop unbunching and
+    //to proceed.
+    uint32 test_index = route_index;
+    route_t const &r = *cnv->get_route();
+    for (; test_index < r.get_count(); test_index++) {
+        grund_t *gr = welt->lookup(r.at(test_index));
+        schiene_t *sch1 = gr ? (schiene_t *)gr->get_weg(get_waytype()) : NULL;
+        if (!sch1)
+            break;
+
+        if (sch1->is_reserved()) {
+            sch1->get_reserved_convoi()->reset_unbunching_time();
+            break;
+        }
+
+        if (sch1->has_signal())
+            break;
+    }
 }

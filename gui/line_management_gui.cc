@@ -25,7 +25,7 @@ line_management_gui_t::line_management_gui_t(linehandle_t line, player_t* player
 		reliefkarte_t::get_karte()->set_current_cnv( line->get_convoy(0) );
 	}
 
-    if (line->get_linetype() == simline_t::truckline) {
+    if (line->get_linetype() != simline_t::shipline || line->get_linetype() != simline_t::airline) {
         unbunching_toggle.add_listener(this);
         unbunching_toggle.pressed = line->is_unbunching();
         unbunching_toggle.set_visible(true);
