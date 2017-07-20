@@ -84,7 +84,7 @@ private:
     /*
      * Estimated route total length (in tiles) for vehicle unbunching
      */
-    uint64 route_length;
+    uint32 route_length;
 
     bool unbunching;
 
@@ -211,9 +211,9 @@ public:
 
 	player_t *get_owner() const {return player;}
 
-    uint64 get_estimated_route_length() const { return route_length; }
+    uint32 get_estimated_route_length() const { return route_length; }
 
-    void update_route_length(uint64 new_length) {
+    void update_route_length(uint32 new_length) {
         route_length = EXP_SMOOTH_COEFF * new_length + (1 - EXP_SMOOTH_COEFF) * route_length;
     }
 

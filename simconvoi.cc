@@ -1612,7 +1612,7 @@ void convoi_t::ziel_erreicht()
             //Needs unbunching?
             if (line.is_bound() && line->is_unbunching()) {
                 uint32 last_departured_from_here = line->get_schedule()->entries[schedule->get_current_stop()].last_departure_time;
-                uint64 target_interval_length = (line->get_estimated_route_length() << YARDS_PER_TILE_SHIFT) / line->count_convoys();
+                uint64 target_interval_length = ((uint64)line->get_estimated_route_length() << YARDS_PER_TILE_SHIFT) / line->count_convoys();
                 uint32 target_interval = 0;
                 if (line->get_finance_history(1, LINE_MAXSPEED) != 0)
                     target_interval = target_interval_length/kmh_to_speed(line->get_finance_history(1, LINE_MAXSPEED));

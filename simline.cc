@@ -296,6 +296,7 @@ void simline_t::rdwr(loadsave_t *file)
 	}
     if(file->get_version()>=120006) {
         file->rdwr_bool(unbunching);
+        file->rdwr_long(route_length);
     }
 
 	// otherwise initialized to zero if loading ...
