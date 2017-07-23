@@ -1576,8 +1576,8 @@ void convoi_t::ziel_erreicht()
         if (last_length_on_terminus > 0) {
             uint32 new_route_length = total_distance_traveled - last_length_on_terminus;
             line->update_route_length(new_route_length);
-            fprintf(stdout, "%s: new_route_time: %d\n", get_name(), new_route_length);
-            fflush(stdout);
+//            fprintf(stdout, "%s: new_route_time: %d\n", get_name(), new_route_length);
+//            fflush(stdout);
         }
         last_length_on_terminus = total_distance_traveled;
     }
@@ -1617,13 +1617,13 @@ void convoi_t::ziel_erreicht()
                 if (line->get_finance_history(1, LINE_MAXSPEED) != 0)
                     target_interval = target_interval_length/kmh_to_speed(line->get_finance_history(1, LINE_MAXSPEED));
                 uint32 actual_interval = arrived_time - last_departured_from_here;
-                fprintf(stdout, "%s: curr_stop: %d; arrived_time: %d, last_arrived_here: %d; t: %d\n", get_name(), schedule->get_current_stop(), arrived_time, last_departured_from_here, target_interval);
+                //fprintf(stdout, "%s: curr_stop: %d; arrived_time: %d, last_arrived_here: %d; t: %d\n", get_name(), schedule->get_current_stop(), arrived_time, last_departured_from_here, target_interval);
                 if (actual_interval < target_interval * 0.8) {
                     uint32 unbunching_time = welt->get_ticks() + target_interval - actual_interval;
                     reset_unbunching_time(unbunching_time);
-                    fprintf(stdout, "Unbunching (time: %d)!\n", unbunching_time);
+                    //fprintf(stdout, "Unbunching (time: %d)!\n", unbunching_time);
                 }
-                fflush(stdout);
+                //fflush(stdout);
             }
 		}
 		else {
