@@ -1610,13 +1610,16 @@ void convoi_t::ziel_erreicht()
 			arrived_time = welt->get_ticks();
 
             //Needs unbunching?
-            if (line.is_bound() && line->is_unbunching()) {
-                uint32 last_departured_from_here = line->get_schedule()->entries[schedule->get_current_stop()].last_departure_time;
+            if (    line.is_bound()
+                    && line->is_unbunching()
+                    && line->get_schedule()->entries.size > schedule->get_current_stop())
+            {
+                uint32 last_departure_from_here = line->get_schedule()->entries[schedule->get_current_stop()].last_departure_time;
                 uint64 target_interval_length = ((uint64)line->get_estimated_route_length() << YARDS_PER_TILE_SHIFT) / line->count_convoys();
                 uint32 target_interval = 0;
                 if (line->get_finance_history(1, LINE_MAXSPEED) != 0)
                     target_interval = target_interval_length/kmh_to_speed(line->get_finance_history(1, LINE_MAXSPEED));
-                uint32 actual_interval = arrived_time - last_departured_from_here;
+                uint32 actual_interval = arrived_time - last_departure_from_here;
                 //fprintf(stdout, "%s: curr_stop: %d; arrived_time: %d, last_arrived_here: %d; t: %d\n", get_name(), schedule->get_current_stop(), arrived_time, last_departured_from_here, target_interval);
                 if (actual_interval < target_interval * 0.8) {
                     uint32 unbunching_time = welt->get_ticks() + target_interval - actual_interval;
