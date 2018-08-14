@@ -17,13 +17,20 @@
 #include "line_management_gui.h"
 
 line_management_gui_t::line_management_gui_t(linehandle_t line, player_t* player_) :
-	schedule_gui_t(line->get_schedule()->copy(), player_, convoihandle_t() )
+    schedule_gui_t(line->get_schedule()->copy(), player_, convoihandle_t() )
 {
-	this->line = line;
+    this->line = line;
 	// has this line a single running convoi?
 	if(  line->count_convoys() > 0  ) {
 		reliefkarte_t::get_karte()->set_current_cnv( line->get_convoy(0) );
 	}
+
+    if (line->get_linetype() != simline_t::shipline && line->get_linetype() != simline_t::airline) {
+        unbunching_toggle.add_listener(this);
+        unbunching_toggle.pressed = line->is_unbunching();
+        unbunching_toggle.set_visible(true);
+    }
+
 	show_line_selector(false);
 }
 
@@ -110,5 +117,17 @@ void line_management_gui_t::rdwr(loadsave_t *file)
 		schedule = old_schedule = NULL;
 		line = linehandle_t();
 		destroy_win( this );
-	}
+    }
+}
+
+bool line_management_gui_t::action_triggered(gui_action_creator_t *komp, value_t p) {
+    if(komp == &unbunching_toggle) {
+        unbunching_toggle.pressed = !unbunching_toggle.pressed;
+        bool unbunch = unbunching_toggle.pressed;
+        if (line.is_bound()) {
+            line->set_unbunching(unbunch);
+        }
+    }
+
+    return schedule_gui_t::action_triggered(komp, p);
 }

@@ -470,6 +470,9 @@ public:
 #else
 	virtual void display_after(int xpos, int ypos, bool dirty) const;
 #endif
+
+    //Tries to unblock way in case there are vehicle waiting for unbunching and blocking your way
+    virtual void try_unblock_way() { /* Should be implemented in sub-classes. */}
 };
 
 
@@ -530,6 +533,8 @@ public:
 	schedule_t * generate_new_schedule() const;
 
 	virtual overtaker_t* get_overtaker();
+
+    virtual void try_unblock_way() OVERRIDE;
 };
 
 
@@ -584,6 +589,8 @@ public:
 	virtual void set_convoi(convoi_t *c);
 
 	virtual schedule_t * generate_new_schedule() const;
+
+    virtual void try_unblock_way() OVERRIDE;
 };
 
 

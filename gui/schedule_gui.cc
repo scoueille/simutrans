@@ -284,6 +284,13 @@ schedule_gui_t::schedule_gui_t(schedule_t* schedule_, player_t* player_, convoih
 
 	ypos += max(lb_waitlevel.get_size().h, bt_return.get_size().h);
 
+    unbunching_toggle.init(button_t::square_state, "Convoi unbunching on this line", scr_coord( BUTTON1_X, ypos ));
+    unbunching_toggle.set_tooltip("Enable/disable convoi unbunching on this line ('minimum load' and 'month wait time' will be ignored)");
+    add_component(&unbunching_toggle);
+    unbunching_toggle.set_visible(false);
+
+    ypos += D_BUTTON_HEIGHT+1;
+
 	bt_add.init(button_t::roundbox_state, "Add Stop", scr_coord(BUTTON1_X, ypos ));
 	bt_add.set_tooltip("Appends stops at the end of the schedule");
 	bt_add.add_listener(this);

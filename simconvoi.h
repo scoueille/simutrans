@@ -292,6 +292,10 @@ private:
 	sint32 sp_soll;           // steps to go
 	sint32 previous_delta_v;  // Stores the previous delta_v value; otherwise these digits are lost during calculation and vehicle do not accelerate
 
+    // needed for vehicle unbunching.
+    sint64 last_length_on_terminus;   //is resetted on line changed or when user intrudes the shedule
+    uint32 end_unbunching_time;
+
 	uint32 next_wolke;	// time to next smoke
 
 	states state;
@@ -884,6 +888,8 @@ public:
 
 	// Overtaking for convois
 	virtual bool can_overtake(overtaker_t *other_overtaker, sint32 other_speed, sint16 steps_other);
+
+    void reset_unbunching_time(uint32 new_time = 0) { end_unbunching_time = new_time; }
 };
 
 #endif

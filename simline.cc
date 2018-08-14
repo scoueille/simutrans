@@ -44,6 +44,8 @@ simline_t::simline_t(player_t* player, linetype type)
 	this->player = player;
 	withdraw = false;
 	state_color = SYSCOL_TEXT;
+    route_length = 0;
+    unbunching = false;
 	create_schedule();
 }
 
@@ -56,8 +58,12 @@ simline_t::simline_t(player_t* player, linetype type, loadsave_t *file)
 	this->schedule = NULL;
 	this->player = player;
 	withdraw = false;
+    unbunching = false;
+    route_length = 0;
+
 	create_schedule();
 	rdwr(file);
+
 	// now self has the right id but the this-pointer is not assigned to the quickstone handle yet
 	// do this explicitly
 	// some savegames have line_id=0, resolve that in finish_rd
@@ -288,6 +294,10 @@ void simline_t::rdwr(loadsave_t *file)
 	if(file->get_version()>=102002) {
 		file->rdwr_bool(withdraw);
 	}
+    if(file->get_version()>=120006) {
+        file->rdwr_bool(unbunching);
+        file->rdwr_long(route_length);
+    }
 
 	// otherwise initialized to zero if loading ...
 	financial_history[0][LINE_CONVOIS] = count_convoys();
