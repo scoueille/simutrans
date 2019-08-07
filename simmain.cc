@@ -200,7 +200,7 @@ static void show_times(karte_t *welt, main_view_t *view)
 void modal_dialogue( gui_frame_t *gui, ptrdiff_t magic, karte_t *welt, bool (*quit)() )
 {
 	if(  display_get_width()==0  ) {
-		dbg->error( "modal_dialogue()", "called without a display driver => nothing will be shown!" );
+		dbg->error( "modal_dialogue", "called without a display driver => nothing will be shown!" );
 		env_t::quit_simutrans = true;
 		// cannot handle this!
 		return;
@@ -221,9 +221,10 @@ void modal_dialogue( gui_frame_t *gui, ptrdiff_t magic, karte_t *welt, bool (*qu
 		uint32 ms_pause = max( 25, 1000/env_t::fps );
 		uint32 last_step = dr_time();
 		uint step_count = 5;
+
 		while(  win_is_open(gui)  &&  !env_t::quit_simutrans  &&  !quit()  ) {
 			do {
-				DBG_DEBUG4("zeige_banner", "calling win_poll_event");
+				DBG_DEBUG4("modal_dialogue", "calling win_poll_event");
 				win_poll_event(&ev);
 				// no toolbar events
 				if(  ev.my < env_t::iconsize.h  ) {
@@ -240,7 +241,7 @@ void modal_dialogue( gui_frame_t *gui, ptrdiff_t magic, karte_t *welt, bool (*qu
 						}
 					}
 				}
-				DBG_DEBUG4("zeige_banner", "calling check_pos_win");
+				DBG_DEBUG4("modal_dialogue", "calling check_pos_win");
 				check_pos_win(&ev);
 				if(  ev.ev_class == EVENT_SYSTEM  &&  ev.ev_code == SYSTEM_QUIT  ) {
 					env_t::quit_simutrans = true;
@@ -248,10 +249,13 @@ void modal_dialogue( gui_frame_t *gui, ptrdiff_t magic, karte_t *welt, bool (*qu
 				}
 				dr_sleep(5);
 			} while(  dr_time() - last_step < ms_pause );
-			DBG_DEBUG4("zeige_banner", "calling welt->sync_step");
+
+			DBG_DEBUG4("modal_dialogue", "calling welt->sync_step");
 			welt->sync_step( ms_pause, true, true );
-			DBG_DEBUG4("zeige_banner", "calling welt->step");
+
 			if(  step_count--==0  ) {
+				DBG_DEBUG4("modal_dialogue", "calling welt->step");
+				intr_set_last_time(last_step); // do not call sync_step twice unless step takes too long
 				welt->step();
 				step_count = 5;
 			}
@@ -266,6 +270,10 @@ void modal_dialogue( gui_frame_t *gui, ptrdiff_t magic, karte_t *welt, bool (*qu
 		while(  win_is_open(gui)  &&  !env_t::quit_simutrans  &&  !quit()  ) {
 			// do not move, do not close it!
 			dr_sleep(50);
+			// check for events again after waiting
+			if (quit()) {
+				break;
+			}
 			dr_prepare_flush();
 			gui->draw(win_get_pos(gui), gui->get_windowsize());
 			dr_flush();
@@ -316,16 +324,14 @@ static bool wait_for_key()
 {
 	event_t ev;
 	display_poll_event(&ev);
-	if(  ev.ev_class != EVENT_NONE  ) {
-		if(  ev.ev_class==EVENT_KEYBOARD  ) {
-			if(  ev.ev_code==SIM_KEY_ESCAPE  ||  ev.ev_code==SIM_KEY_SPACE  ||  ev.ev_code==SIM_KEY_BACKSPACE  ) {
-				return true;
-			}
+	if(  ev.ev_class==EVENT_KEYBOARD  ) {
+		if(  ev.ev_code==SIM_KEY_ESCAPE  ||  ev.ev_code==SIM_KEY_SPACE  ||  ev.ev_code==SIM_KEY_BACKSPACE  ) {
+			return true;
 		}
-		event_t *nev = new event_t();
-		*nev = ev;
-		queue_event(nev);
 	}
+	event_t *nev = new event_t();
+	*nev = ev;
+	queue_event(nev);
 	return false;
 }
 
@@ -336,7 +342,12 @@ static bool wait_for_key()
 static void ask_objfilename()
 {
 	pakselector_t* sel = new pakselector_t();
-	sel->fill_list();
+	// notify gui to load list of paksets
+	event_t ev;
+	ev.ev_class = INFOWIN;
+	ev.ev_code  = WIN_OPEN;
+	sel->infowin_event(&ev);
+
 	if(sel->has_pak()) {
 		destroy_all_win(true);	// since eventually the successful load message is still there ....
 		modal_dialogue( sel, magic_none, NULL, empty_objfilename );
@@ -621,7 +632,7 @@ int simu_main(int argc, char** argv)
 	// now read last setting (might be overwritten by the tab-files)
 	loadsave_t file;
 	if(file.rd_open("settings.xml"))  {
-		if(  file.get_version()>loadsave_t::int_version(SAVEGAME_VER_NR, NULL, NULL )  ) {
+		if(  file.get_version_int()>loadsave_t::int_version(SAVEGAME_VER_NR, NULL )  ) {
 			// too new => remove it
 			file.close();
 			dr_remove("settings.xml");
@@ -1066,7 +1077,8 @@ int simu_main(int argc, char** argv)
 	obj_reader_t::load( env_t::objfilename.c_str(), translator::translate("Loading paks ...") );
 	std::string overlaid_warning;	// more prominent handling of double objects
 	if(  dbg->had_overlaid()  ) {
-		overlaid_warning = "<h1>Error</h1><p><strong>" + env_t::objfilename + " contains the following doubled objects:</strong><p>" + dbg->get_overlaid() + "<p>";
+		overlaid_warning = translator::translate("<h1>Error</h1><p><strong>");
+		overlaid_warning.append( env_t::objfilename + translator::translate("contains the following doubled objects:</strong><p>") + dbg->get_overlaid() + "<p>" );
 		dbg->clear_overlaid();
 	}
 
@@ -1079,7 +1091,7 @@ int simu_main(int argc, char** argv)
 		}
 		dr_chdir( env_t::program_dir );
 		if(  dbg->had_overlaid()  ) {
-			overlaid_warning.append( "<h1>Warning</h1><p><strong>addons for " + env_t::objfilename + "\" contains the following doubled objects:</strong><p>" + dbg->get_overlaid() );
+			overlaid_warning.append( translator::translate("<h1>Warning</h1><p><strong>addons for") + env_t::objfilename + translator::translate("contains the following doubled objects:</strong><p>") + dbg->get_overlaid() );
 			dbg->clear_overlaid();
 		}
 	}
@@ -1167,7 +1179,7 @@ int simu_main(int argc, char** argv)
 	// still nothing to be loaded => search for demo games
 	if(  new_world  ) {
 		dr_chdir( env_t::program_dir );
-		char buffer[256];
+		char buffer[PATH_MAX];
 		sprintf(buffer, "%s%sdemo.sve", (const char*)env_t::program_dir, env_t::objfilename.c_str());
 		// access did not work!
 		if (FILE* const f = dr_fopen(buffer, "rb")) {

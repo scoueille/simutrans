@@ -8,7 +8,7 @@
 #ifndef gui_components_gui_speedbar_h
 #define gui_components_gui_speedbar_h
 
-#include "gui_komponente.h"
+#include "gui_component.h"
 #include "../../tpl/slist_tpl.h"
 
 
@@ -43,7 +43,11 @@ public:
 	/**
 	 * Draw the component
 	 */
-	void draw(scr_coord offset);
+	void draw(scr_coord offset) OVERRIDE;
+
+	scr_size get_min_size() const OVERRIDE;
+
+	scr_size get_max_size() const OVERRIDE;
 };
 
 #endif

@@ -47,7 +47,8 @@
 
 #ifdef MULTI_THREAD
 #include "../../utils/simthread.h"
-static pthread_mutex_t weg_calc_image_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+static pthread_mutex_t weg_calc_image_mutex;
+static recursive_mutex_maker_t weg_cim_maker(weg_calc_image_mutex);
 #endif
 
 /**
@@ -186,7 +187,7 @@ void weg_t::rdwr(loadsave_t *file)
 	xml_tag_t t( file, "weg_t" );
 
 	// save owner
-	if(  file->get_version() >= 99006  ) {
+	if(  file->is_version_atleast(99, 6)  ) {
 		sint8 spnum=get_player_nr();
 		file->rdwr_byte(spnum);
 		set_player_nr(spnum);
@@ -204,7 +205,7 @@ void weg_t::rdwr(loadsave_t *file)
 	file->rdwr_short(dummy16);
 	max_speed=dummy16;
 
-	if(  file->get_version() >= 89000  ) {
+	if(  file->is_version_atleast(89, 0)  ) {
 		dummy8 = flags;
 		file->rdwr_byte(dummy8);
 		if(  file->is_loading()  ) {
@@ -260,6 +261,10 @@ void weg_t::info(cbuffer_t & buf) const
 	}
 #endif
 	buf.append("\n");
+	if (char const* const maker = get_desc()->get_copyright()) {
+		buf.printf(translator::translate("Constructed by %s"), maker);
+		buf.append("\n");
+	}
 }
 
 

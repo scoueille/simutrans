@@ -43,7 +43,8 @@
 
 #ifdef MULTI_THREAD
 #include "../utils/simthread.h"
-static pthread_mutex_t wayobj_calc_image_mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+static pthread_mutex_t wayobj_calc_image_mutex;
+static recursive_mutex_maker_t wayobj_cim_maker(wayobj_calc_image_mutex);
 #endif
 
 // the descriptions ...
@@ -133,7 +134,7 @@ void wayobj_t::rdwr(loadsave_t *file)
 {
 	xml_tag_t t( file, "wayobj_t" );
 	obj_t::rdwr(file);
-	if(file->get_version()>=89000) {
+	if(file->is_version_atleast(89, 0)) {
 		uint8 ddir = dir;
 		file->rdwr_byte(ddir);
 		dir = ddir;

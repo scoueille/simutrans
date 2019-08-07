@@ -6,7 +6,7 @@
 class font_t
 {
 public:
-	char fname[1024];
+	char fname[PATH_MAX];
 	sint16	height;
 	sint16	descent;
 	uint16 num_chars;
@@ -20,9 +20,6 @@ public:
 	{
 		fname[0]= 0;
 	}
-
-	// later we may add on the fly rendering for freefont
-	uint16 get_char(uint16 i) { return char_data[i] == 0 ? 0 : i; }
 };
 
 /*

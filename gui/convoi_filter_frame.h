@@ -57,7 +57,7 @@ public:
 
 
 private:
-	uint32 filter_flags;
+	static uint32 filter_flags;
 
 	bool get_filter(convoi_filter_frame_t::filter_flag_t filter) { return (filter_flags & filter) != 0; }
 	void set_filter(convoi_filter_frame_t::filter_flag_t filter, bool on) { filter_flags = (on ? (filter_flags | filter) : (filter_flags & ~filter) ); }
@@ -92,7 +92,6 @@ private:
 	slist_tpl<ware_item_t *>all_ware;
 	static slist_tpl<const goods_desc_t *>active_ware;
 
-	static scr_coord filter_buttons_pos[FILTER_BUTTONS];
 	static filter_flag_t filter_buttons_types[FILTER_BUTTONS];
 	static const char *filter_buttons_text[FILTER_BUTTONS];
 
@@ -115,8 +114,8 @@ private:
 	button_t ware_keine;
 	button_t ware_invers;
 
+	gui_aligned_container_t ware_cont;
 	gui_scrollpane_t ware_scrolly;
-	gui_container_t ware_cont;
 
 public:
 	void sort_list();
@@ -125,25 +124,20 @@ public:
 	 * Constructor. Generates all necessary Subcomponents.
 	 * @author V. Meyer
 	 */
-	convoi_filter_frame_t(player_t *player, convoi_frame_t *parent, uint32 initial_filters );
+	convoi_filter_frame_t(player_t *player, convoi_frame_t *parent);
 
 	/**
 	 * Does this window need a min size button in the title bar?
 	 * @return true if such a button is needed
 	 */
-	bool has_min_sizer() const {return true;}
-
-	/**
-	 * resize window in response to a resize event
-	 */
-	void resize(const scr_coord delta);
+	bool has_min_sizer() const OVERRIDE {return true;}
 
 	/**
 	 * Set the window associated helptext
 	 * @return the filename for the helptext, or NULL
 	 * @author V. Meyer
 	 */
-	const char *get_help_filename() const {return "convoi_filter.txt"; }
+	const char *get_help_filename() const OVERRIDE {return "convoi_filter.txt"; }
 
 	bool action_triggered(gui_action_creator_t*, value_t) OVERRIDE;
 };

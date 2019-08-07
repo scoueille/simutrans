@@ -191,10 +191,7 @@ void roadsign_t::info(cbuffer_t & buf) const
 {
 	obj_t::info( buf );
 
-	if(  desc->is_private_way()  ) {
-		buf.append( "\n\n\n\n\n\n\n\n\n\n\n\n\n\n" );
-	}
-	else {
+	if(  !desc->is_private_way()  ) {
 		buf.append(translator::translate("Roadsign"));
 		buf.append("\n");
 		if(desc->is_single_way()) {
@@ -206,9 +203,12 @@ void roadsign_t::info(cbuffer_t & buf) const
 		buf.printf("%s%u\n", translator::translate("\ndirection:"), dir);
 		if(  automatic  ) {
 			buf.append(translator::translate("\nSet phases:"));
-			buf.append("\n");
-			buf.append("\n");
 		}
+	}
+
+	if (char const* const maker = desc->get_copyright()) {
+		buf.append("\n");
+		buf.printf(translator::translate("Constructed by %s"), maker);
 	}
 }
 
@@ -472,9 +472,10 @@ sync_result roadsign_t::sync_step(uint32 /*delta_t*/)
 	}
 	else {
 		// change every ~32s
-		uint32 ticks = ((welt->get_ticks()>>10)+ticks_offset) % (ticks_ns+ticks_ow);
+		// Must not overflow if ticks_ns+ticks_ow=256
+		uint32 ticks = ((welt->get_ticks()>>10)+ticks_offset) % ((uint32)ticks_ns+(uint32)ticks_ow);
 
-		uint8 new_state = (ticks >= ticks_ns) ^ (welt->get_settings().get_rotation() & 1);
+		uint8 new_state = (ticks >= ticks_ns);
 		if(state!=new_state) {
 			state = new_state;
 			dir = (new_state==0) ? ribi_t::northsouth : ribi_t::eastwest;
@@ -491,6 +492,11 @@ void roadsign_t::rotate90()
 	obj_t::rotate90();
 	if(automatic  &&  !desc->is_private_way()) {
 		state = (state+1)&1;
+		if (ticks_offset >= ticks_ns) {
+			ticks_offset -= ticks_ns;
+		} else {
+			ticks_offset += ticks_ow;
+		}
 		uint8 temp = ticks_ns;
 		ticks_ns = ticks_ow;
 		ticks_ow = temp;
@@ -538,7 +544,7 @@ void roadsign_t::rdwr(loadsave_t *file)
 	obj_t::rdwr(file);
 
 	uint8 dummy=0;
-	if(  file->get_version()<=102002  ) {
+	if(  file->is_version_less(102, 3)  ) {
 		file->rdwr_byte(dummy);
 		if(  file->is_loading()  ) {
 			ticks_ns = ticks_ow = 16;
@@ -548,7 +554,7 @@ void roadsign_t::rdwr(loadsave_t *file)
 		file->rdwr_byte(ticks_ns);
 		file->rdwr_byte(ticks_ow);
 	}
-	if(  file->get_version()>=110007  ) {
+	if(  file->is_version_atleast(110, 7)  ) {
 		file->rdwr_byte(ticks_offset);
 	}
 	else {
@@ -563,7 +569,7 @@ void roadsign_t::rdwr(loadsave_t *file)
 	dummy = dir;
 	file->rdwr_byte(dummy);
 	dir = dummy;
-	if(file->get_version()<89000) {
+	if(file->is_version_less(89, 0)) {
 		dir = ribi_t::backward(dir);
 	}
 
@@ -587,7 +593,7 @@ void roadsign_t::rdwr(loadsave_t *file)
 			}
 		}
 		// init ownership of private ways signs
-		if(  file->get_version()<110007  &&  desc  &&  desc->is_private_way()  ) {
+		if(  file->is_version_less(110, 7)  &&  desc  &&  desc->is_private_way()  ) {
 			ticks_ns = 0xFD;
 			ticks_ow = 0xFF;
 		}

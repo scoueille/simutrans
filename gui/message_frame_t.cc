@@ -5,7 +5,7 @@
  * (see licence.txt)
  */
 
-#include "../gui/simwin.h"
+#include "simwin.h"
 #include "../simworld.h"
 #include "../simmenu.h"
 
@@ -56,12 +56,29 @@ message_frame_t::message_frame_t() :
 	stats(),
 	scrolly(&stats)
 {
+	ibuf[0] = 0;
+
+	set_table_layout(1,0);
+
+	add_table(2,0);
+	{
+		option_bt.init(button_t::roundbox, translator::translate("Optionen"));
+		option_bt.add_listener(this);
+		add_component(&option_bt);
+
+		if(  env_t::networkmode  ) {
+			input.set_text(ibuf, lengthof(ibuf) );
+			input.add_listener(this);
+			add_component(&input);
+			set_focus( &input );
+		}
+	}
+	end_table();
 
 	scrolly.set_show_scroll_x(true);
 	scrolly.set_scroll_amount_y(LINESPACE+1);
 
 	// Knightly : add tabs for classifying messages
-	tabs.set_pos( scr_coord(0, D_BUTTON_HEIGHT) );
 	tabs.add_tab( &scrolly, translator::translate("All") );
 	tab_categories.append( -1 );
 
@@ -80,58 +97,30 @@ message_frame_t::message_frame_t() :
 	tabs.add_listener(this);
 	add_component(&tabs);
 
-	option_bt.init(button_t::roundbox, translator::translate("Optionen"), scr_coord(BUTTON1_X,0));
-	option_bt.add_listener(this);
-	add_component(&option_bt);
-
-	ibuf[0] = 0;
-	input.set_text(ibuf, lengthof(ibuf) );
-	input.add_listener(this);
-	input.set_pos(scr_coord(BUTTON2_X,0));
+	set_resizemode(diagonal_resize);
 	if(  env_t::networkmode  ) {
 		set_transparent( env_t::chat_window_transparency, color_idx_to_rgb(COL_WHITE) );
-		add_component(&input);
-		set_focus( &input );
 	}
 
+	reset_min_windowsize();
 	set_windowsize(scr_size(D_DEFAULT_WIDTH, D_DEFAULT_HEIGHT));
-	set_min_windowsize(scr_size(BUTTON3_X, D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT+D_TAB_HEADER_HEIGHT+2+3*(LINESPACE+1)+D_SCROLLBAR_HEIGHT));
-
-	set_resizemode(diagonal_resize);
-	resize(scr_coord(0,0));
-}
-
-
-
-/**
- * resize window in response to a resize event
- * @author Hj. Malthaner
- * @date   16-Oct-2003
- */
-void message_frame_t::resize(const scr_coord delta)
-{
-	gui_frame_t::resize(delta);
-	scr_size size = get_windowsize()-scr_size(0,D_TITLEBAR_HEIGHT+D_BUTTON_HEIGHT);
-	input.set_size(scr_size(size.w-D_SCROLLBAR_WIDTH-BUTTON2_X, D_EDIT_HEIGHT));
-	tabs.set_size(size);
-	scrolly.set_size(size-scr_size(0,D_BUTTON_HEIGHT+4+1));
 }
 
 
 /* triggered, when button clicked; only single button registered, so the action is clear ... */
-bool message_frame_t::action_triggered( gui_action_creator_t *komp, value_t v )
+bool message_frame_t::action_triggered( gui_action_creator_t *comp, value_t v )
 {
-	if(  komp==&option_bt  ) {
+	if(  comp==&option_bt  ) {
 		create_win(320, 200, new message_option_t(), w_info, magic_message_options );
 	}
-	else if(  komp==&input  &&  ibuf[0]!=0  ) {
+	else if(  comp==&input  &&  ibuf[0]!=0  ) {
 		// Send chat message to server for distribution
 		nwc_chat_t* nwchat = new nwc_chat_t( ibuf, welt->get_active_player()->get_player_nr(), env_t::nickname.c_str() );
 		network_send_server( nwchat );
 
 		ibuf[0] = 0;
 	}
-	else if(  komp==&tabs  ) {
+	else if(  comp==&tabs  ) {
 		// Knightly : filter messages by type where necessary
 		if(  stats.filter_messages( tab_categories[v.i] )  ) {
 			scrolly.set_scroll_position(0, 0);
@@ -143,24 +132,18 @@ bool message_frame_t::action_triggered( gui_action_creator_t *komp, value_t v )
 
 void message_frame_t::rdwr(loadsave_t *file)
 {
+	// window size
 	scr_size size = get_windowsize();
-	sint32 scroll_x = scrolly.get_scroll_x();
-	sint32 scroll_y = scrolly.get_scroll_y();
-	sint16 tabstate = tabs.get_active_tab_index();
-
 	size.rdwr( file );
+
+	scrolly.rdwr(file);
+	tabs.rdwr(file);
 	file->rdwr_str( ibuf, lengthof(ibuf) );
-	file->rdwr_short( tabstate );
-	file->rdwr_long( scroll_x );
-	file->rdwr_long( scroll_y );
 
 	if(  file->is_loading()  ) {
-		if ( tabstate > 0  &&  (uint32)tabstate < tabs.get_count() ) {
-			tabs.set_active_tab_index( tabstate );
-			stats.filter_messages( tab_categories[tabstate] );
-		}
-		set_windowsize( size );
-		resize( scr_coord(0,0) );
-		scrolly.set_scroll_position( scroll_x, scroll_y );
+		stats.filter_messages( tab_categories[tabs.get_active_tab_index()] );
+
+		reset_min_windowsize();
+		set_windowsize(size);
 	}
 }

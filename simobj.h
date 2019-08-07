@@ -305,6 +305,12 @@ public:
 	virtual void show_info();
 
 	/**
+	 * @return True if the object lifecycle is managed by another system so cannot be destroyed.
+	 * False if the object can be destroyed at any time.
+	 */
+	virtual bool has_managed_lifecycle() const;
+
+	/**
 	 * @return NULL if OK, otherwise an error message
 	 * @author Hj. Malthaner
 	 */
@@ -370,7 +376,7 @@ class obj_no_info_t : public obj_t
 public:
 	obj_no_info_t(koord3d pos) : obj_t(pos) {}
 
-	void show_info() {}
+	void show_info() OVERRIDE {}
 
 protected:
 	obj_no_info_t() : obj_t() {}

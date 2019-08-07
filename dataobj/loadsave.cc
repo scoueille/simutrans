@@ -193,6 +193,7 @@ loadsave_t::mode_t loadsave_t::autosave_mode = zipped;	// default to use for aut
 
 loadsave_t::loadsave_t() : filename()
 {
+	last_error = FILE_ERROR_OK;
 	mode = 0;
 	saving = false;
 	buffered = false;
@@ -318,15 +319,15 @@ bool loadsave_t::rd_open(const char *filename_utf8 )
 		// and now with zlib ...
 		fd->gzfp = dr_gzopen(filename_utf8, "rb");
 		if(fd->gzfp==NULL) {
-			return false;
 			last_error = FILE_ERROR_GZ_CORRUPT;
+			return false;
 		}
 		gzgets(fd->gzfp, buf, 80);
 	}
 	saving = false;
 
 	if (strstart(buf, SAVEGAME_PREFIX)) {
-		version = int_version(buf + sizeof(SAVEGAME_PREFIX) - 1, &mode, pak_extension);
+		version = int_version(buf + sizeof(SAVEGAME_PREFIX) - 1, pak_extension);
 		if(  version == 0  ) {
 			close();
 			last_error = FILE_ERROR_NO_VERSION;
@@ -355,8 +356,7 @@ bool loadsave_t::rd_open(const char *filename_utf8 )
 			*s++ = c;
 		}
 		*s = 0;
-		int dummy;
-		version = int_version(str, &dummy, pak_extension);
+		version = int_version(str, pak_extension);
 		if(  version == 0  ) {
 			close();
 			last_error = FILE_ERROR_NO_VERSION;
@@ -466,12 +466,12 @@ bool loadsave_t::wr_open(const char *filename_utf8, mode_t m, const char *pak_ex
 	// delete trailing path separator
 	this->pak_extension[strlen(this->pak_extension)-1] = 0;
 
-	version = int_version( savegame_version, NULL, NULL );
+	version = int_version( savegame_version, NULL );
 
 	if(  !is_xml()  ) {
 		char str[4096];
 		size_t len;
-		if(  version<=102002  ) {
+		if(  is_version_less(102, 3)  ) {
 			len = sprintf( str, SAVEGAME_PREFIX "%s%s%s\n", savegame_version, "zip", this->pak_extension );
 		}
 		else {
@@ -652,6 +652,9 @@ size_t loadsave_t::write(const void *buf, size_t len)
 
 void loadsave_t::flush_buffer(int buf_num)
 {
+#ifdef MULTI_THREAD
+	pthread_mutex_lock(&loadsave_mutex);
+#endif
 	int bse = fd->bse;
 	if(  is_zipped()  ) {
 		gzwrite(fd->gzfp, ls_buf[buf_num], buf_pos[buf_num]);
@@ -663,9 +666,6 @@ void loadsave_t::flush_buffer(int buf_num)
 	else {
 		fwrite(ls_buf[buf_num], 1, buf_pos[buf_num], fd->fp);
 	}
-#ifdef MULTI_THREAD
-	pthread_mutex_lock(&loadsave_mutex);
-#endif
 	if(  is_bzip2()  ) {
 		fd->bse = bse;
 	}
@@ -1342,7 +1342,7 @@ void loadsave_t::rd_obj_id(char *id_buf, int size)
 }
 
 
-uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *pak_extension_str)
+uint32 loadsave_t::int_version(const char *version_text, char *pak_extension_str)
 {
 	// major number (0..)
 	uint32 v0 = atoi(version_text);
@@ -1371,25 +1371,28 @@ uint32 loadsave_t::int_version(const char *version_text, int * /*mode*/, char *p
 	// the next char is either 'b'/'z'/'-',
 	// if it is '.' the we try to load a simutrans-experimental savegame
 	if(*version_text == '.') {
-		// st-exp savegame, we can't load it, return version=0
-		strcpy(pak_extension_str,"(st-exp)");
+		// Simutrans Extended savegame, we can't load it, return version=0
+		if (pak_extension_str) {
+			std::strcpy(pak_extension_str,"(st-exp)");
+		}
 		return 0;
 	}
 
 	if(  version<=102002  ) {
-		/* the compression and the mode we determined already ourselves (otherwise we cannot read this
-		 * => leave the mode alone but for unknown modes!
+		/* the compression and the mode we determined already ourselves
+		 * (otherwise we cannot read this => leave the mode alone but for unknown modes!)
 		 */
 		if (strstart(version_text, "bin")) {
-			//*mode = binary;
 			version_text += 3;
-		} else if (strstart(version_text, "zip")) {
-			//*mode = zipped;
+		}
+		else if (strstart(version_text, "zip")) {
 			version_text += 3;
 		}
 		else if(  *version_text  ) {
 			// illegal version ...
-			strcpy(pak_extension_str,"(broken)");
+			if (pak_extension_str) {
+				std::strcpy(pak_extension_str,"(broken)");
+			}
 			return 0;
 		}
 	}

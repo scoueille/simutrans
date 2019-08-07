@@ -356,99 +356,67 @@ static grund_t *tool_intern_koord_to_weg_grund(player_t *player, karte_t *welt, 
 
 
 /****************************************** now the actual tools **************************************/
-const char *tool_query_t::work( player_t *player, koord3d pos )
+const char *tool_query_t::work( player_t *, koord3d pos )
 {
 	grund_t *gr = welt->lookup(pos);
 	if(gr) {
-		DBG_MESSAGE("tool_query_t()","checking map square %s", pos.get_str());
+		// not single_info: show least important first
+		const bool reverse = !env_t::single_info  ||  is_ctrl_pressed();
 
-		if(  env_t::single_info  ) {
+		// iterate through different stages of importance
+		const uint8 max_stages = 4;
+		for(uint8 stage = 0; stage<max_stages; stage++) {
 
 			int old_count = win_get_open_count();
 
-			if(  is_ctrl_pressed()  ) {
-				// reverse order
-				for(int n=0;  n<gr->get_top();  n++  ) {
-					obj_t *obj = gr->obj_bei(n);
-					if(  obj && obj->get_typ()!=obj_t::wayobj && obj->get_typ()!=obj_t::pillar && obj->get_typ()!=obj_t::label  ) {
-						DBG_MESSAGE("tool_query_t()", "index %d", n);
-						obj->show_info();
-						// did some new window open?
-						if(old_count!=win_get_open_count()) {
-							return NULL;
+			switch (reverse ? max_stages-1-stage: stage) {
+				case 0: { // halts
+					if(  gr->get_halt().is_bound()  ) {
+						gr->get_halt()->open_info_window();
+					}
+					break;
+				}
+				case 1: // labels
+					if(  gr->get_flag(grund_t::marked)  ) {
+						label_t *lb = gr->find<label_t>();
+						if(  lb  ) {
+							lb->show_info();
+							if(  old_count < win_get_open_count()  ) {
+								return NULL;
+							}
 						}
 					}
-				}
+					break;
+				case 2: { // objects
+					convoihandle_t cnv;
+					for (size_t n = gr->get_top(); n-- != 0;) {
+						obj_t *obj = gr->obj_bei(reverse ? gr->get_top()-1-n : n);
 
-				if(  gr->get_flag(grund_t::marked)  ) {
-					label_t *lb = gr->find<label_t>();
-					if(  lb  ) {
-						lb->show_info();
-						if(  old_count!=win_get_open_count()  ) {
-							return NULL;
+						if (vehicle_t* veh = dynamic_cast<vehicle_t*>(obj)) {
+							if (veh->get_convoi()->self == cnv) {
+								continue; // do not try to open the same window twice, does not work so great with env_t::second_open_closes_win
+							}
+							cnv = veh->get_convoi()->self;
+						}
+						if(  obj && obj->get_typ()!=obj_t::wayobj && obj->get_typ()!=obj_t::pillar && obj->get_typ()!=obj_t::label  ) {
+							DBG_MESSAGE("tool_query_t()", "index %u", (unsigned)n);
+							obj->show_info();
+							// did some new window open?
+							if(env_t::single_info  &&  old_count < win_get_open_count()) {
+								return NULL;
+							}
+							old_count = win_get_open_count(); // click may have closed a window, open a new one if possible
 						}
 					}
+					break;
 				}
-
-				if(  gr->get_halt().is_bound()  ) {
-					gr->get_halt()->open_info_window();
-					if(  old_count!=win_get_open_count()  ) {
-						return NULL;
-					}
-				}
-
-			}
-			else {
-
-				// show halt and labels first ...
-				if(  gr->get_halt().is_bound()  ) {
-					gr->get_halt()->open_info_window();
-					if(  old_count!=win_get_open_count()  ) {
-						return NULL;
-					}
-				}
-				if(  gr->get_flag(grund_t::marked)  ) {
-					label_t *lb = gr->find<label_t>();
-					if(  lb  ) {
-						lb->show_info();
-						if(  old_count!=win_get_open_count()  ) {
-							return NULL;
-						}
-					}
-				}
-
-				for (size_t n = gr->get_top(); n-- != 0;) {
-					obj_t *obj = gr->obj_bei(n);
-					if(  obj && obj->get_typ()!=obj_t::wayobj && obj->get_typ()!=obj_t::pillar && obj->get_typ()!=obj_t::label  ) {
-						DBG_MESSAGE("tool_query_t()", "index %u", (unsigned)n);
-						obj->show_info();
-						// did some new window open?
-						if(old_count!=win_get_open_count()) {
-							return NULL;
-						}
-					}
-				}
+				case 3:
+				default: // ground
+					gr->open_info_window();
+					break;
 			}
 
-			// no window yet opened -> try ground info
-			gr->open_info_window();
-		}
-		else {
-			// lowest (less interesting) first
-			gr->open_info_window();
-			for(int n=0; n<gr->get_top();  n++  ) {
-				obj_t *obj = gr->obj_bei(n);
-				if(  obj && obj->get_typ()!=obj_t::wayobj && obj->get_typ()!=obj_t::pillar  ) {
-					obj->show_info();
-				}
-			}
-		}
-
-		if(gr->get_depot()  &&  gr->get_depot()->get_owner()==player) {
-			int old_count = win_get_open_count();
-			gr->get_depot()->show_info();
-			// did some new window open?
-			if(env_t::single_info  &&  old_count!=win_get_open_count()) {
+			if(  env_t::single_info  &&  old_count < win_get_open_count()  ) {
 				return NULL;
 			}
 		}
@@ -2897,7 +2865,7 @@ uint8 tool_build_tunnel_t::is_valid_pos(  player_t *player, const koord3d &pos, 
 	if(  gr  ) {
 		if( gr->hat_wege() ) {
 			const tunnel_desc_t *desc = tunnel_builder_t::get_desc(default_param);
-			// use the check_owner routine of way_builder_t (not spieler_t!), needs an instance
+			// use the check_owner routine of way_builder_t (not player_t!), needs an instance
 			weg_t *w = gr->get_weg_nr(0);
 			if(  w==NULL  ||  w->get_desc()->get_wtyp()!=desc->get_waytype()  ) {
 				error = NOTICE_UNSUITABLE_GROUND;
@@ -3005,11 +2973,11 @@ waytype_t tool_wayremover_t::get_waytype() const
 }
 
 class electron_t : public test_driver_t {
-	bool check_next_tile(const grund_t* gr) const { return gr->get_leitung()!=NULL; }
-	virtual ribi_t::ribi get_ribi(const grund_t* gr) const { return gr->get_leitung()->get_ribi(); }
-	virtual waytype_t get_waytype() const { return invalid_wt; }
-	virtual int get_cost(const grund_t *, const weg_t *, const sint32, ribi_t::ribi) const { return 1; }
-	virtual bool is_target(const grund_t *,const grund_t *) const { return false; }
+	bool check_next_tile(const grund_t* gr) const OVERRIDE { return gr->get_leitung()!=NULL; }
+	ribi_t::ribi get_ribi(const grund_t* gr) const OVERRIDE { return gr->get_leitung()->get_ribi(); }
+	waytype_t get_waytype() const OVERRIDE { return invalid_wt; }
+	int get_cost(const grund_t *, const weg_t *, const sint32, ribi_t::ribi) const OVERRIDE { return 1; }
+	bool is_target(const grund_t *,const grund_t *) const OVERRIDE { return false; }
 };
 
 class scenario_checker_t : public test_driver_t {
@@ -3037,11 +3005,11 @@ public:
 		return test_driver;
 	}
 private:
-	bool check_next_tile(const grund_t* gr) const { return other->check_next_tile(gr)  &&  scenario->is_work_allowed_here(player, id, other->get_waytype(), gr->get_pos())==NULL;}
-	virtual ribi_t::ribi get_ribi(const grund_t* gr) const { return other->get_ribi(gr); }
-	virtual waytype_t get_waytype() const { return other->get_waytype(); }
-	virtual int get_cost(const grund_t *gr, const weg_t *w, const sint32 max_speed, ribi_t::ribi from) const { return other->get_cost(gr, w, max_speed, from); }
-	virtual bool is_target(const grund_t *gr,const grund_t *gr2) const { return other->is_target(gr,gr2); }
+	bool check_next_tile(const grund_t* gr) const OVERRIDE { return other->check_next_tile(gr)  &&  scenario->is_work_allowed_here(player, id, other->get_waytype(), gr->get_pos())==NULL;}
+	ribi_t::ribi get_ribi(const grund_t* gr) const OVERRIDE { return other->get_ribi(gr); }
+	waytype_t get_waytype() const OVERRIDE { return other->get_waytype(); }
+	int get_cost(const grund_t *gr, const weg_t *w, const sint32 max_speed, ribi_t::ribi from) const OVERRIDE { return other->get_cost(gr, w, max_speed, from); }
+	bool is_target(const grund_t *gr,const grund_t *gr2) const OVERRIDE { return other->is_target(gr,gr2); }
 };
 
 void tool_wayremover_t::mark_tiles( player_t *player, const koord3d &start, const koord3d &end )
@@ -3360,8 +3328,17 @@ bool tool_build_wayobj_t::init( player_t *player )
 bool tool_build_wayobj_t::calc_route( route_t &verbindung, player_t *player, const koord3d& start, const koord3d& to )
 {
 	waytype_t waytype = wt;
-	if (waytype == any_wt) {
+	if(  waytype == any_wt  ) {
 		waytype = welt->lookup(start)->get_weg(wt)->get_waytype();
+	}
+	// special treatment for deports, since track electrication cannot "drive" into tram depot
+	if(  waytype == track_wt  ) {
+		if(  depot_t  *dp = welt->lookup(start)->get_depot()  ) {
+			waytype = dp->get_waytype();
+		}
+		else if(  depot_t  *dp = welt->lookup(to)->get_depot()  ) {
+			waytype = dp->get_waytype();
+		}
 	}
 	// get a default vehikel
 	vehicle_desc_t remover_desc( waytype, 500, vehicle_desc_t::diesel );
@@ -3522,7 +3499,7 @@ const char *tool_build_station_t::tool_station_building_aux(player_t *player, bo
 	}
 DBG_MESSAGE("tool_station_building_aux()", "building mail office/station building on square %d,%d", k.x, k.y);
 
-	// Player pays for the construction
+	// Player player pays for the construction
 	// but we try to extend stations of Player new_owner that may be the public player
 	player_t *new_owner = extend_public_halt ? welt->get_public_player() : player;
 
@@ -4136,6 +4113,7 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 	}
 
 	halt->recalc_station_type();
+
 	if(  env_t::station_coverage_show  &&  welt->get_zeiger()->get_pos().get_2d()==k  ) {
 		// since we are larger now ...
 		halt->mark_unmark_coverage( true );
@@ -4145,6 +4123,9 @@ const char *tool_build_station_t::tool_station_flat_dock_aux(player_t *player, k
 		char* const name = halt->create_name(k, "Dock");
 		halt->set_name( name );
 		free(name);
+	}
+	else {
+		halt->recalc_basis_pos();
 	}
 	return NULL;
 }
@@ -4342,6 +4323,9 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 		halt->set_name(name);
 		free(name);
 	}
+	else {
+		halt->recalc_basis_pos();
+	}
 
 	// cost to build new station
 	sint64 cost = -desc->get_price(welt)*desc->get_x()*desc->get_y();
@@ -4350,10 +4334,10 @@ DBG_MESSAGE("tool_station_aux()", "building %s on square %d,%d for waytype %x", 
 	if(  player!=halt->get_owner() && player != welt->get_public_player()  ) {
 		// public stops are expensive!
 		// (Except for the public player itself)
-
 		cost -= (desc->get_maintenance(welt) * desc->get_x() * desc->get_y() * 60);
 	}
 	player_t::book_construction_costs(player,  cost, k, wegtype);
+
 	if(  env_t::station_coverage_show  &&  welt->get_zeiger()->get_pos().get_2d()==k  ) {
 		// since we are larger now ...
 		halt->mark_unmark_coverage( true );
@@ -4512,6 +4496,12 @@ const char *tool_build_station_t::check_pos( player_t*,  koord3d pos )
 	if(  grund_t *gr = welt->lookup( pos )  ) {
 		sint8 rotation;
 		const building_desc_t *desc = get_desc(rotation);
+		if(desc == NULL) {
+			// tool is in bad state, eg due to invalid tool parameters
+			DBG_DEBUG("tool_build_station_t::check_pos()", "Cannot resolve building descriptor, default_param=\"%s\".", default_param);
+			return "ENGINE ERROR: Build station tool cannot resolve a building descriptor.";
+		}
+
 		if(  grund_t *bd = welt->lookup_kartenboden( pos.get_2d() )  ) {
 			const bool underground = bd->get_hoehe()>gr->get_hoehe();
 			if(  underground  ) {
@@ -4622,7 +4612,7 @@ const char *tool_build_station_t::work( player_t *player, koord3d pos )
 		}
 
 		default:
-			dbg->warning("tool_station_t::work()","tool called for illegal desc \"%\"", default_param );
+			dbg->warning("tool_build_station_t::work()","tool called for illegal desc \"%\"", default_param );
 			msg = "Illegal station tool";
 	}
 	return msg;
@@ -5300,7 +5290,7 @@ const char *tool_build_depot_t::work( player_t *player, koord3d pos )
 		case tram_wt:
 			return tool_build_depot_t::tool_depot_aux(player, pos, desc, track_wt);
 		default:
-			dbg->warning("tool_depot()","called with unknown desc %s",desc->get_name() );
+			dbg->warning("tool_build_depot()","called with unknown desc %s",desc->get_name() );
 			return "Unknown depot object";
 	}
 	return NULL;
@@ -5362,7 +5352,7 @@ const char *tool_build_house_t::work( player_t *player, koord3d pos )
 	else if(  default_param[1]=='A'  ) {
 		if(  desc->get_type()!=building_desc_t::attraction_land  &&  desc->get_type()!=building_desc_t::attraction_city  ) {
 			// auto rotation only valid for city buildings
-			rotation = stadt_t::orient_city_building( k, desc );
+			rotation = stadt_t::orient_city_building( k, desc, desc->get_size() );
 			if(  rotation < 0 ) {
 				return NOTICE_UNSUITABLE_GROUND;
 			}
@@ -5890,9 +5880,9 @@ const char *tool_lock_game_t::work( player_t *, koord3d )
 	if(  !welt->get_public_player()->is_locked() ) {
 		return "In order to lock the game, you have to protect the public player by password!";
 	}
-	welt->get_settings().set_allow_player_change(false);
 	destroy_all_win( true );
 	welt->switch_active_player( 0, true );
+	welt->get_settings().set_allow_player_change(false);
 	welt->set_tool( general_tool[TOOL_QUERY], welt->get_player(0) );
 	return NULL;
 }
@@ -6223,7 +6213,6 @@ bool tool_daynight_level_t::init( player_t * ) {
 }
 
 
-
 /* make all tiles of this player a public stop
  * if this player is public, make all connected tiles a public stop */
 bool tool_make_stop_public_t::init( player_t * )
@@ -6252,147 +6241,183 @@ const char *tool_make_stop_public_t::move( player_t *player, uint16, koord3d p )
 
 const char *tool_make_stop_public_t::work( player_t *player, koord3d p )
 {
-	// target ground must exist
-	grund_t const *const gr = welt->lookup(p);
-	if(  !gr  ) {
+	// target halt must exist
+	halthandle_t halt = haltestelle_t::get_halt(p,player);
+	if(  !halt.is_bound()  ) {
 		return NOTICE_UNSUITABLE_GROUND;
 	}
 
-	player_t *const psplayer = welt->get_public_player();
-	bool const giveaway = player != psplayer;
+	// check funds
+	sint64 workcost = -welt->scale_with_month_length(halt->calc_maintenance() * welt->get_settings().cst_make_public_months);
 
-	// make stop public if any suitable
-	halthandle_t const halt = gr->get_halt();
-	if(  halt.is_bound()  &&  halt->get_owner() != psplayer  &&  player_t::check_owner(halt->get_owner(), player)  ) {
-		/*if(  !(player_t::check_owner(halt->get_owner(),player)  ||  halt->get_owner()==psplayer)  ) {
-			return "Das Feld gehoert\neinem anderen Spieler\n";
-		}*/
-
-		// check funds
-		sint64 const workcost = -welt->scale_with_month_length(halt->calc_maintenance() * welt->get_settings().cst_make_public_months);
-		if(  giveaway  &&  !player->can_afford(workcost)  ) {
-			return NOTICE_INSUFFICIENT_FUNDS;
+	// check waycost and soem forbidden cases too
+	FOR(slist_tpl<haltestelle_t::tile_t>, const& i, halt->get_tiles()) {
+		// make way public if any suitable
+		for(  int j=0;  j<2;  j++  ) {
+			if(  weg_t *w=i.grund->get_weg_nr(0)  ) {
+				if(  w->get_owner() != welt->get_public_player()  ) {
+					// no public ways?
+					if(  welt->get_settings().get_disable_make_way_public()  ) {
+						return NOTICE_DISABLED_PUBLIC_WAY;
+					}
+					// no public way with signs
+					if(  w->has_sign()  ) {
+						return NOTICE_UNSUITABLE_GROUND;
+					}
+					// compute maintainance cost
+					sint32 cost = w->get_desc()->get_maintenance();
+					// tunnel cost overwrites way cost
+					if(  tunnel_t *t = i.grund->find<tunnel_t>()  ) {
+						cost = t->get_desc()->get_maintenance();
+					}
+					workcost -= welt->scale_with_month_length(cost * welt->get_settings().cst_make_public_months);
+					// not making ways public on bridges
+					if(  i.grund->get_typ()==grund_t::brueckenboden  ) {
+						return NOTICE_UNSUITABLE_GROUND;
+					}
+				}
+			}
 		}
-
-		// change ownership
-		halt->make_public_and_join(player);
-
-		return NULL;
 	}
 
-	// make way public if any suitable
-	weg_t *w = NULL;
-	for(  int i = 0;  i < 2;  i++  ) {
-		weg_t *const wtest = gr->get_weg_nr(i);
-		if(  wtest  &&  wtest->get_owner() != psplayer  &&  player_t::check_owner(wtest->get_owner(), player)  ) {
-			w = wtest;
+	if(  !player->can_afford(workcost)  ) {
+		return NOTICE_INSUFFICIENT_FUNDS;
+	}
+
+	// now find an adjacent stop
+	vector_tpl<halthandle_t>checked_halts;
+	checked_halts.append(halt);
+	halthandle_t merge_to;
+	FOR(slist_tpl<haltestelle_t::tile_t>, const& i, halt->get_tiles()) {
+		const koord pos = i.grund->get_pos().get_2d();
+		planquadrat_t *pl = welt->access( pos );
+		for(  int i=0;  i<pl->get_haltlist_count();  i++  ) {
+			halthandle_t h = pl->get_haltlist()[i];
+			if(  !checked_halts.is_contained(h)  &&  h->get_owner()==welt->get_public_player()  ) {
+				koord testpos = h->get_ground_closest_to( pos )->get_pos().get_2d();
+				if(  abs(pos.x-testpos.x) <= 1  &&  abs(pos.y-testpos.y) <= 1  ) {
+					merge_to = h;
+					break;
+				}
+			}
+		}
+		if(  merge_to.is_bound()  ) {
 			break;
 		}
 	}
-	if(  w  ) {
-		// public ways must be enabled
-		if(  !giveaway  &&  welt->get_settings().get_disable_make_way_public()  ) {
-			return NOTICE_DISABLED_PUBLIC_WAY;
-		}
 
-		// not making ways public on bridges
-		if(  gr->get_typ()==grund_t::brueckenboden  ) {
-			return NOTICE_UNSUITABLE_GROUND;
-		}
+	// change ownership
+	halt->change_owner( welt->get_public_player() );
+	halt->merge_halt( merge_to );
 
-		// no public way with signs
-		if(  w->has_sign()  ) {
-			return NOTICE_UNSUITABLE_GROUND;
-		}
-
-		// compute maintainance cost
-		sint32 cost = w->get_desc()->get_maintenance();
-		tunnel_t *t = NULL;
-		// tunnel cost overwrites way cost
-		if(  gr->ist_tunnel()  ) {
-			t = gr->find<tunnel_t>();
-			cost = t->get_desc()->get_maintenance();
-		}
-
-		// check funds
-		sint64 const workcost = -welt->scale_with_month_length(cost * welt->get_settings().cst_make_public_months);
-		if(  giveaway  &&  !player->can_afford(workcost)  ) {
-			return NOTICE_INSUFFICIENT_FUNDS;
-		}
-
-		// change ownership of way...
-		w->set_owner(psplayer);
-		w->set_flag(obj_t::dirty);
-		// of tunnel...
-		if(  t  ) {
-			t->set_owner(psplayer);
-			t->set_flag(obj_t::dirty);
-		}
-		player_t *const wowner = w->get_owner();
-		waytype_t const financetype = w->get_desc()->get_finance_waytype();
-		player_t::add_maintenance(wowner, -cost, financetype);
-		player_t::add_maintenance(psplayer, cost, financetype);
-
-		// cost is transfered to public service player
-		if(  giveaway  ) {
-			player_t::book_construction_costs(player, workcost, gr->get_pos().get_2d(), financetype);
-			player_t::book_construction_costs(psplayer, -workcost, koord::invalid, financetype);
-		}
-
-		// multiplayer notification message
-		if(  player != psplayer  &&  env_t::networkmode  ) {
-			cbuffer_t buf;
-			buf.printf( translator::translate("(%s) now public way."), w->get_pos().get_str() );
-			welt->get_message()->add_message( buf, w->get_pos().get_2d(), message_t::ai, PLAYER_FLAG|player->get_player_nr(), IMG_EMPTY );
-		}
-
-		return NULL;
-	}
-
-	// make way object public if any suitable
-	wayobj_t *wo = NULL;
-	for(  uint8 i = 1;  i < gr->get_top();  i++  ) {
-		wayobj_t *const wotest = obj_cast<wayobj_t>(gr->obj_bei(i));
-		if(  wotest  &&  wotest->get_owner() != psplayer  &&  player_t::check_owner(wotest->get_owner(), player)  ) {
-			wo = wotest;
-			break;
-		}
-	}
-	if(  wo  ) {
-		// public ways must be enabled
-		if(  !giveaway  &&  welt->get_settings().get_disable_make_way_public()  ) {
-			return NOTICE_DISABLED_PUBLIC_WAY;
-		}
-
-		// check funds
-		sint32 const cost = wo->get_desc()->get_maintenance();
-		sint64 const workcost = -welt->scale_with_month_length(cost * welt->get_settings().cst_make_public_months);
-		if(  giveaway  &&  !player->can_afford(workcost)  ) {
-			return NOTICE_INSUFFICIENT_FUNDS;
-		}
-
-		// change ownership
-		wo->set_owner( psplayer );
-		wo->set_flag(obj_t::dirty);
-		player_t *const woowner = wo->get_owner();
-		waytype_t const financetype = wo->get_desc()->get_waytype();
-		player_t::add_maintenance(woowner, -cost, financetype);
-		player_t::add_maintenance(psplayer, cost, financetype);
-
-		// cost is transfered to public service player
-		if(  giveaway  ) {
-			player_t::book_construction_costs(player, workcost, gr->get_pos().get_2d(), financetype);
-			player_t::book_construction_costs(psplayer, -workcost, koord::invalid, financetype);
-		}
-
-		return NULL;
-	}
-
-	// nothing to make public
 	return NULL;
 }
 
 
+/* merge stop */
+image_id tool_merge_stop_t::get_marker_image()
+{
+	return cursor;
+}
+
+uint8 tool_merge_stop_t::is_valid_pos( player_t *player, const koord3d &pos, const char *&error, const koord3d &)
+{
+	grund_t *bd = welt->lookup(pos);
+	if (bd==NULL) {
+		error = "";
+		return 0;
+	}
+
+	// check halt ownership
+	halthandle_t h = haltestelle_t::get_halt(pos,player);
+	if(  h.is_bound()  ) {
+		//  allow to merge two public stops too
+		// so no need to check for ownership
+
+		// check for halt on the tile
+		if(  bd->is_halt()  ||  (h->get_station_type()&haltestelle_t::dock  &&  bd->is_water())  ) {
+			return 2;
+		}
+	}
+
+	// not a halt at all ...
+	error = NOTICE_UNSUITABLE_GROUND;
+	return 0;
+}
+
+void tool_merge_stop_t::mark_tiles(  player_t *player, const koord3d &start, const koord3d &end )
+{
+	halt_be_merged_from = haltestelle_t::get_halt(start,player);
+	halt_be_merged_to = haltestelle_t::get_halt(end,player);
+	sint64 workcost = 0;
+	uint32 distance = 0x7FFFFFFFu;
+
+	FOR(slist_tpl<haltestelle_t::tile_t>, const& i, halt_be_merged_from->get_tiles()) {
+		FOR(slist_tpl<haltestelle_t::tile_t>, const& j, halt_be_merged_to->get_tiles()) {
+			uint32 dist = koord_distance( i.grund->get_pos(), j.grund->get_pos() );
+			if(  dist < distance  ) {
+				distance = dist;
+				if(  distance <= 1  ) {
+					break;
+				}
+			}
+		}
+		if(  distance <= 1  ) {
+			break;
+		}
+	}
+
+	if(  distance  < welt->get_settings().allow_merge_distant_halt  ) {
+		distance = clamp(distance,2,33)-2;
+		workcost = welt->scale_with_month_length( (1<<distance) * welt->get_settings().cst_multiply_merge_halt );
+		win_set_static_tooltip( tooltip_with_price("Building costs estimates", workcost) );
+	}
+	else {
+		win_set_static_tooltip( "Too far away to merge stations!" );
+	}
+}
+
+const char *tool_merge_stop_t::do_work( player_t *player, const koord3d &last_pos, const koord3d &pos)
+{
+	halt_be_merged_from = haltestelle_t::get_halt(pos,player);
+	halt_be_merged_to = haltestelle_t::get_halt(last_pos,player);
+	sint64 workcost = 0;
+	uint32 distance = 0x7FFFFFFFu;
+
+	FOR(slist_tpl<haltestelle_t::tile_t>, const& i, halt_be_merged_from->get_tiles()) {
+		FOR(slist_tpl<haltestelle_t::tile_t>, const& j, halt_be_merged_to->get_tiles()) {
+			uint32 dist = koord_distance( i.grund->get_pos(), j.grund->get_pos() );
+			if(  dist < distance  ) {
+				distance = dist;
+				if(  distance <= 1  ) {
+					break;
+				}
+			}
+		}
+		if(  distance <= 1  ) {
+			break;
+		}
+	}
+
+	if(  distance  < welt->get_settings().allow_merge_distant_halt  ) {
+		distance = clamp(distance,2,33)-2;
+		workcost = welt->scale_with_month_length( (1<<distance) * welt->get_settings().cst_multiply_merge_halt );
+		win_set_static_tooltip( tooltip_with_price("Building costs estimates", workcost) );
+		if(  player != welt->get_public_player()  &&  !player->can_afford(workcost)  ) {
+			return NOTICE_INSUFFICIENT_FUNDS;
+		}
+	}
+	else {
+		return "Too far away to merge stations!";
+	}
+
+	// and now just do it ...
+	halt_be_merged_to->merge_halt(halt_be_merged_from);
+	player_t::book_construction_costs( player, workcost, halt_be_merged_to->get_basis_pos(), ignore_wt );
+
+	// nothing to do
+	return NULL;
+}
 
 bool tool_show_trees_t::init( player_t * )
 {
@@ -7136,7 +7161,7 @@ bool tool_change_line_t::init( player_t *player )
 bool tool_change_depot_t::init( player_t *player )
 {
 	char tool=0;
-	koord3d pos = koord3d::invalid;
+	koord pos2d;
 	sint16 z;
 	uint16 convoi_id;
 
@@ -7145,8 +7170,9 @@ bool tool_change_depot_t::init( player_t *player )
 	while(  *p  &&  *p<=' '  ) {
 		p++;
 	}
-	sscanf( p, "%c,%hi,%hi,%hi,%hi", &tool, &pos.x, &pos.y, &z, &convoi_id );
-	pos.z = (sint8)z;
+	sscanf( p, "%c,%hi,%hi,%hi,%hi", &tool, &pos2d.x, &pos2d.y, &z, &convoi_id );
+
+	koord3d pos(pos2d, z);
 
 	// skip to the commands ...
 	z = 5;
@@ -7424,12 +7450,12 @@ bool tool_change_player_t::init( player_t *player_in)
  */
 bool tool_change_traffic_light_t::init( player_t *player )
 {
-	koord3d pos;
+	koord pos2d;
 	sint16 z, ns, ticks;
-	if(  5!=sscanf( default_param, "%hi,%hi,%hi,%hi,%hi", &pos.x, &pos.y, &z, &ns, &ticks )  ) {
+	if(  5!=sscanf( default_param, "%hi,%hi,%hi,%hi,%hi", &pos2d.x, &pos2d.y, &z, &ns, &ticks )  ) {
 		return false;
 	}
-	pos.z = (sint8)z;
+	koord3d pos(pos2d, z);
 	if(  grund_t *gr = welt->lookup(pos)  ) {
 		if( roadsign_t *rs = gr->find<roadsign_t>()  ) {
 			if(  (  rs->get_desc()->is_traffic_light()  ||  rs->get_desc()->is_private_way()  )  &&  player_t::check_owner(rs->get_owner(),player)  ) {
@@ -7519,8 +7545,9 @@ bool tool_rename_t::init(player_t *player)
 			}
 			break;
 		case 'm':
-		case 'f':
-			if(  3!=sscanf( p, "%hi,%hi,%hi", &pos.x, &pos.y, &id )  ) {
+		case 'f': {
+			koord pos2d;
+			if(  3!=sscanf( p, "%hi,%hi,%hi", &pos2d.x, &pos2d.y, &id )  ) {
 				dbg->error( "tool_rename_t::init", "no position given for marker/factory! (%s)", default_param );
 				return false;
 			}
@@ -7530,9 +7557,10 @@ bool tool_rename_t::init(player_t *player)
 			}
 			while(  *p>0  &&  *p++!=','  ) {
 			}
-			pos.z = (sint8)id;
+			pos = koord3d(pos2d, id);
 			id = 0;
 			break;
+		}
 		default:
 			dbg->error( "tool_rename_t::init", "illegal request! (%s)", default_param );
 			return false;

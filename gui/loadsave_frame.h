@@ -8,6 +8,7 @@
 #ifndef gui_loadsave_frame_h
 #define gui_loadsave_frame_h
 
+#include <time.h>
 
 #include "savegame_frame.h"
 #include "../tpl/stringhashtable_tpl.h"
@@ -35,21 +36,20 @@ private:
 	button_t easy_server; // only active on loading savegames
 
 	static stringhashtable_tpl<sve_info_t *> cached_info;
+
 protected:
 	/**
 	 * Action that's started with a button click
 	 * @author Hansjörg Malthaner
 	 */
-	virtual bool item_action (const char *filename);
-	virtual bool ok_action   (const char *fullpath);
+	bool item_action (const char *filename) OVERRIDE;
+	bool ok_action   (const char *fullpath) OVERRIDE;
 
 	// returns extra file info
-	virtual const char *get_info(const char *fname);
+	const char *get_info(const char *fname) OVERRIDE;
 
 	// sort with respect to info, which is date
-	virtual bool compare_items ( const dir_entry_t & entry, const char *info, const char *);
-
-	virtual void set_windowsize(scr_size size);
+	bool compare_items ( const dir_entry_t & entry, const char *info, const char *) OVERRIDE;
 
 public:
 	/**
@@ -57,7 +57,7 @@ public:
 	* @return the filename for the helptext, or NULL
 	* @author Hj. Malthaner
 	*/
-	virtual const char *get_help_filename() const;
+	const char *get_help_filename() const OVERRIDE;
 
 	loadsave_frame_t(bool do_load);
 

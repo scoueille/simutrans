@@ -25,8 +25,6 @@
 
 const goods_desc_t *ware_t::index_to_desc[256];
 
-
-
 ware_t::ware_t() : ziel(), zwischenziel(), zielpos(-1, -1)
 {
 	menge = 0;
@@ -54,12 +52,12 @@ void ware_t::rdwr(loadsave_t *file)
 	sint32 amount = menge;
 	file->rdwr_long(amount);
 	menge = amount;
-	if(file->get_version()<99008) {
+	if(file->is_version_less(99, 8)) {
 		sint32 max;
 		file->rdwr_long(max);
 	}
 
-	if(  file->get_version()>=110005  ) {
+	if(  file->is_version_atleast(110, 5)  ) {
 		uint8 factory_going = to_factory;
 		file->rdwr_byte(factory_going);
 		to_factory = factory_going;
@@ -69,7 +67,7 @@ void ware_t::rdwr(loadsave_t *file)
 	}
 
 	uint8 catg=0;
-	if(file->get_version()>=88005) {
+	if(file->is_version_atleast(88, 5)) {
 		file->rdwr_byte(catg);
 	}
 
@@ -92,7 +90,7 @@ void ware_t::rdwr(loadsave_t *file)
 		}
 	}
 	// convert coordinate to halt indices
-	if(file->get_version() > 110005) {
+	if(file->is_version_atleast(110, 6)) {
 		// save halt id directly
 		if(file->is_saving()) {
 			uint16 halt_id = ziel.is_bound() ? ziel.get_id() : 0;
@@ -128,13 +126,12 @@ void ware_t::rdwr(loadsave_t *file)
 	}
 	zielpos.rdwr(file);
 	// restore factory-flag
-	if(  file->get_version()<110005  &&  file->is_loading()  ) {
+	if(  file->is_version_less(110, 5)  &&  file->is_loading()  ) {
 		if (fabrik_t::get_fab(zielpos)) {
 			to_factory = 1;
 		}
 	}
 }
-
 
 
 void ware_t::finish_rd(karte_t *welt)
@@ -184,4 +181,30 @@ sint64 ware_t::calc_revenue(const goods_desc_t* desc, waytype_t wt, sint32 speed
 	const sint32 grundwert_bonus = 1000+kmh_base*desc->get_speed_bonus();      // speed bonus factor
 	// take the larger of both
 	return desc->get_value() * (grundwert128 > grundwert_bonus ? grundwert128 : grundwert_bonus);
+}
+
+ware_t::goods_amount_t ware_t::add_goods(goods_amount_t const number) {
+	goods_amount_t const limit = GOODS_AMOUNT_LIMIT - menge;
+	if (limit < number) {
+		menge = GOODS_AMOUNT_LIMIT;
+		return number - limit;
+	}
+
+	menge+= number;
+	return 0;
+}
+
+ware_t::goods_amount_t ware_t::remove_goods(goods_amount_t const number) {
+	if (menge < number) {
+		goods_amount_t const remainder = number - menge;
+		menge = 0;
+		return remainder;
+	}
+
+	menge-= number;
+	return 0;
+}
+
+bool ware_t::is_goods_amount_maxed() const {
+	return menge == GOODS_AMOUNT_LIMIT;
 }

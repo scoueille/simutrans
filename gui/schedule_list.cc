@@ -116,12 +116,10 @@ linehandle_t schedule_list_gui_t::selected_line[MAX_PLAYER_COUNT][simline_t::MAX
 schedule_list_gui_t::schedule_list_gui_t(player_t *player_) :
 	gui_frame_t( translator::translate("Line Management"), player_),
 	player(player_),
-	scrolly_convois(&cont),
-	scrolly_haltestellen(&cont_haltestellen),
-	scl(gui_scrolled_list_t::listskin),
-	lbl_filter("Line Filter"),
-	convoy_infos(),
-	stop_infos()
+	scl(gui_scrolled_list_t::listskin, line_scrollitem_t::compare),
+	scrolly_convois(gui_scrolled_list_t::windowskin),
+	scrolly_haltestellen(gui_scrolled_list_t::windowskin),
+	lbl_filter("Line Filter")
 {
 	capacity = load = 0;
 	selection = -1;
@@ -136,7 +134,6 @@ schedule_list_gui_t::schedule_list_gui_t(player_t *player_) :
 	// init scrolled list
 	scl.set_pos(scr_coord(D_MARGIN_LEFT, D_MARGIN_TOP));
 	scl.set_size(scr_size(3*D_BUTTON_WIDTH+2*D_H_SPACE, SCL_HEIGHT));
-	scl.set_highlight_color(color_idx_to_rgb(player->get_player_color1()+1));
 	scl.add_listener(this);
 
 	// tab panel
@@ -219,7 +216,6 @@ schedule_list_gui_t::schedule_list_gui_t(player_t *player_) :
 	add_component(&bt_delete_line);
 
 	// lower left corner: halt list of selected line
-	cont_haltestellen.set_size(scr_size(3*D_BUTTON_WIDTH+2*D_H_SPACE, 28));
 	scrolly_haltestellen.set_pos(scr_coord(D_MARGIN_LEFT, bt_y + D_BUTTON_HEIGHT+ D_V_SPACE));
 	scrolly_haltestellen.set_show_scroll_x(true);
 	scrolly_haltestellen.set_scroll_amount_y(28);
@@ -240,7 +236,6 @@ schedule_list_gui_t::schedule_list_gui_t(player_t *player_) :
 	add_component(&filled_bar);
 
 	// convoi list
-	cont.set_size(scr_size(200, 40));
 	scrolly_convois.set_pos(scr_coord(RIGHT_COLUMN_OFFSET, bt_y + D_BUTTON_HEIGHT+ D_V_SPACE + 2*LINESPACE));
 	scrolly_convois.set_show_scroll_x(true);
 	scrolly_convois.set_scroll_amount_y(40);
@@ -303,16 +298,6 @@ schedule_list_gui_t::~schedule_list_gui_t()
 	delete last_schedule;
 	// change line name if necessary
 	rename_line();
-
-	// delete all convoy info objects
-	while(  !convoy_infos.empty()  ) {
-		delete convoy_infos.pop_back();
-	}
-
-	// delete all stop info objects
-	while(  !stop_infos.empty()  ) {
-		delete stop_infos.pop_back();
-	}
 }
 
 
@@ -341,14 +326,14 @@ bool schedule_list_gui_t::infowin_event(const event_t *ev)
 }
 
 
-bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t v )           // 28-Dec-01    Markus Weber    Added
+bool schedule_list_gui_t::action_triggered( gui_action_creator_t *comp, value_t v )           // 28-Dec-01    Markus Weber    Added
 {
-	if(  komp == &bt_edit_line  ) {
+	if(  comp == &bt_edit_line  ) {
 		if(  line.is_bound()  ) {
 			create_win( new line_management_gui_t(line, player), w_info, (ptrdiff_t)line.get_rep() );
 		}
 	}
-	else if(  komp == &bt_new_line  ) {
+	else if(  comp == &bt_new_line  ) {
 		// create typed line
 		assert(  tabs.get_active_tab_index() > 0  &&  tabs.get_active_tab_index()<max_idx  );
 		// update line schedule via tool!
@@ -362,7 +347,7 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 		delete tmp_tool;
 		depot_t::update_all_win();
 	}
-	else if(  komp == &bt_delete_line  ) {
+	else if(  comp == &bt_delete_line  ) {
 		if(  line.is_bound()  ) {
 			tool_t *tmp_tool = create_tool( TOOL_CHANGE_LINE | SIMPLE_TOOL );
 			cbuffer_t buf;
@@ -374,7 +359,7 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 			depot_t::update_all_win();
 		}
 	}
-	else if(  komp == &bt_withdraw_line  ) {
+	else if(  comp == &bt_withdraw_line  ) {
 		bt_withdraw_line.pressed ^= 1;
 		if (  line.is_bound()  ) {
 			tool_t *tmp_tool = create_tool( TOOL_CHANGE_LINE | SIMPLE_TOOL );
@@ -386,7 +371,7 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 			delete tmp_tool;
 		}
 	}
-	else if(  komp == &tabs  ) {
+	else if(  comp == &tabs  ) {
 		int const tab = tabs.get_active_tab_index();
 		uint8 old_selected_tab = selected_tab[player->get_player_nr()];
 		selected_tab[player->get_player_nr()] = tabs_to_lineindex[tab];
@@ -404,7 +389,7 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 			bt_new_line.disable();
 		}
 	}
-	else if(  komp == &scl  ) {
+	else if(  comp == &scl  ) {
 		if(  line_scrollitem_t *li=(line_scrollitem_t *)scl.get_element(v.i)  ) {
 			update_lineinfo( li->get_line() );
 		}
@@ -415,19 +400,19 @@ bool schedule_list_gui_t::action_triggered( gui_action_creator_t *komp, value_t 
 		selected_line[player->get_player_nr()][selected_tab[player->get_player_nr()]] = line;
 		selected_line[player->get_player_nr()][0] = line; // keep these the same in overview
 	}
-	else if(  komp == &inp_filter  ) {
+	else if(  comp == &inp_filter  ) {
 		if(  strcmp(old_schedule_filter,schedule_filter)  ) {
 			build_line_list(tabs.get_active_tab_index());
 			strcpy(old_schedule_filter,schedule_filter);
 		}
 	}
-	else if(  komp == &inp_name  ) {
+	else if(  comp == &inp_name  ) {
 		rename_line();
 	}
 	else {
 		if(  line.is_bound()  ) {
 			for(  int i=0;  i<MAX_LINE_COST;  i++  ) {
-				if(  komp == &filterButtons[i]  ) {
+				if(  comp == &filterButtons[i]  ) {
 					filterButtons[i].pressed ^= 1;
 					if(  filterButtons[i].pressed  ) {
 						chart.show_curve(i);
@@ -593,25 +578,22 @@ void schedule_list_gui_t::build_line_list(int filter)
 	sint32 sel = -1;
 	scl.clear_elements();
 	player->simlinemgmt.get_lines(tabs_to_lineindex[filter], &lines);
-	vector_tpl<line_scrollitem_t *>selected_lines;
 
 	FOR(vector_tpl<linehandle_t>, const l, lines) {
 		// search name
 		if(  strstr(l->get_name(), schedule_filter)  ) {
-			selected_lines.append(new line_scrollitem_t(l));
-		}
-	}
+			scl.new_component<line_scrollitem_t>(l);
 
-	FOR(vector_tpl<line_scrollitem_t*>, const i, selected_lines) {
-		scl.append_element(i);
-		if(  line == i->get_line()  ) {
-			sel = scl.get_count() - 1;
+			if(  line == l  ) {
+				sel = scl.get_count() - 1;
+			}
 		}
 	}
 
 	scl.set_selection( sel );
 	line_scrollitem_t::sort_mode = (line_scrollitem_t::sort_modes_t)current_sort_mode;
-	scl.sort( 0, NULL );
+	scl.sort( 0 );
+	scl.set_size(scl.get_size());
 
 	old_line_count = player->simlinemgmt.get_line_count();
 }
@@ -637,21 +619,11 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 		uint32 icnv = 0;
 		icnv = new_line->count_convoys();
 		// display convoys of line
-		cont.remove_all();
-		while(  !convoy_infos.empty()  ) {
-			delete convoy_infos.pop_back();
-		}
-		convoy_infos.resize(icnv);
-		scr_coord_val ypos = 0;
+		scrolly_convois.clear_elements();
 		for(  uint32 i=0;  i<icnv;  i++  ) {
-			gui_convoiinfo_t* const cinfo = new gui_convoiinfo_t(new_line->get_convoy(i));
-			cinfo->set_pos(scr_coord(0, ypos));
-			cinfo->set_size(scr_size(400, 40));
-			convoy_infos.append(cinfo);
-			cont.add_component(cinfo);
-			ypos += 40;
+			scrolly_convois.new_component<gui_convoiinfo_t>(new_line->get_convoy(i));
 		}
-		cont.set_size(scr_size(500, ypos));
+		scrolly_convois.set_size(scrolly_convois.get_size());
 
 		bt_delete_line.disable();
 		add_component(&bt_withdraw_line);
@@ -667,24 +639,14 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 		bt_withdraw_line.pressed = new_line->get_withdraw();
 
 		// fill haltestellen container with info of stops of the line
-		cont_haltestellen.remove_all();
-		while(  !stop_infos.empty()  ) {
-			delete stop_infos.pop_back();
-		}
-		stop_infos.resize(new_line->get_schedule()->entries.get_count());
-		ypos = 0;
+		scrolly_haltestellen.clear_elements();
 		FOR(minivec_tpl<schedule_entry_t>, const& i, new_line->get_schedule()->entries) {
 			halthandle_t const halt = haltestelle_t::get_halt(i.pos, player);
 			if(  halt.is_bound()  ) {
-				halt_list_stats_t* cinfo = new halt_list_stats_t(halt);
-				cinfo->set_pos(scr_coord(0, ypos));
-				cinfo->set_size(scr_size(500, 28));
-				stop_infos.append(cinfo);
-				cont_haltestellen.add_component(cinfo);
-				ypos += 28;
+				scrolly_haltestellen.new_component<halt_list_stats_t>(halt);
 			}
 		}
-		cont_haltestellen.set_size(scr_size(500, ypos));
+		scrolly_haltestellen.set_size(scrolly_haltestellen.get_size());
 
 		// chart
 		chart.remove_curves();
@@ -712,7 +674,6 @@ void schedule_list_gui_t::update_lineinfo(linehandle_t new_line)
 	else if(  inp_name.is_visible()  ) {
 		// previously a line was visible
 		// thus the need to hide everything
-		cont.remove_all();
 		inp_name.set_visible(false);
 		filled_bar.set_visible(false);
 		scrolly_convois.set_visible(false);
@@ -800,7 +761,7 @@ void schedule_list_gui_t::rdwr( loadsave_t *file )
 	size.rdwr( file );
 	simline_t::rdwr_linehandle_t(file, line);
 
-	uint8 num_buttons = file->get_version()<112008 ? 8 : MAX_LINE_COST;
+	uint8 num_buttons = file->is_version_atleast(112, 8) ? MAX_LINE_COST : 8;
 	for(  int i=0;  i<num_buttons;  i++  ) {
 		bool b = filterButtons[i].pressed;
 		file->rdwr_bool( b );

@@ -1,3 +1,29 @@
+    ADD: Map number is shown in the enlarge map window.
+    FIX: Text area GUI components no longer suffer from line wrap around when displaying an extreme number of lines.
+    FIX: Stop information window waiting list in "via (amount)" order will no longer count incorrectly when more than 8,388,607 units are headed to a single destination.
+    FIX: SDL2 build running on Windows 10 in fullscreen mode now minimizes and maximizes responsively.
+	CHG: gui overhaul: automatic placement and size calculation of elements
+	ADD: use animated water graphics on shores
+	FIX: Do not call DefWindowsProc for IME to mitigate crash on Windows1809
+	ADD: always use temporary save name *.sv_ during saving before deleting main file
+	CHG: Make double pak warning translatable
+	FIX: (ACarlotti) rotation of traffic light phases and overflow was broken for years
+	FIX: fields now check for allowed climate, not same height
+	ADD: (HyperSim inspired) new tool for merging distance stations (and lot of code cleanup of old merging tool)
+	ADD: constrait[prev][0]=any require a vehile in front (and same for [next] to require a trailing vehicle)
+	CHG: The acceleration tool now also alters the acceleration in fast forward mode
+	ADD: Up to 3x3 city buildings, all with up to 8 rotations
+	FIX: Prevent a crash when the schedule window is open with waypoints on bridges that were destroyed or had planning canceled.
+	FIX: Goods List speed field will now allow selecting speeds appropiate for very fast vehicles.
+	CHG: Revise Goods List for better clarity and usability.
+
+
+Release of 120.4.1 (r8600 on 23-Sep-2018):
+	FIX: wrong graphics with greedy block signals
+	FIX: world minimum height could not be set
+	FIX: location forest could not work with factories smaller than 3x3, since not enough inner tiles were iterated 
+
+
 Release of 120.4 (r8588 on 17-Sep-2018):
 	FIX: properly handle dualstack servers by using both IPv4 and IP6 addresses (if no symbolic name is available)
 	ADD: (HyperSim) sorting vehicles in depot

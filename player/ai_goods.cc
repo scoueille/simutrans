@@ -1338,7 +1338,7 @@ DBG_MESSAGE("ai_goods_t::step()","remove already constructed rail between %i,%i 
 
 void ai_goods_t::rdwr(loadsave_t *file)
 {
-	if(  file->get_version()<102002  ) {
+	if(  file->is_version_less(102, 2)  ) {
 		// due to an error the player was never saved correctly
 		player_t::rdwr(file);
 		return;
@@ -1349,7 +1349,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 	ai_t::rdwr(file);
 
 	// then check, if we have to do something or the game is too old ...
-	if(file->get_version()<101000) {
+	if(file->is_version_less(101, 0)) {
 		// ignore saving, reinit on loading
 		if(  file->is_loading()  ) {
 			state = NR_INIT;
@@ -1372,7 +1372,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 	file->rdwr_long(count_rail);
 	file->rdwr_long(count_road);
 	file->rdwr_long(count);
-	if(  file->get_version()<111001  ) {
+	if(  file->is_version_less(111, 1)  ) {
 		file->rdwr_bool(road_transport);
 		file->rdwr_bool(rail_transport);
 		file->rdwr_bool(ship_transport);
@@ -1461,7 +1461,7 @@ void ai_goods_t::rdwr(loadsave_t *file)
 		}
 	}
 	// save harbour position
-	if(  file->get_version() > 110000  ) {
+	if(  file->is_version_atleast(110, 1)  ) {
 		harbour.rdwr(file);
 	}
 }
@@ -1512,7 +1512,7 @@ void ai_goods_t::fabconnection_t::rdwr(loadsave_t *file)
 void ai_goods_t::report_vehicle_problem(convoihandle_t cnv,const koord3d ziel)
 {
 	if(  cnv->get_state() == convoi_t::NO_ROUTE  &&  this!=welt->get_active_player()  ) {
-			DBG_MESSAGE("ai_passenger_t::bescheid_vehikel_problem","Vehicle %s can't find a route to (%i,%i)!", cnv->get_name(),ziel.x,ziel.y);
+			DBG_MESSAGE("ai_passenger_t::report_vehicle_problem","Vehicle %s can't find a route to (%i,%i)!", cnv->get_name(),ziel.x,ziel.y);
 			cnv->self_destruct();
 			return;
 	}
